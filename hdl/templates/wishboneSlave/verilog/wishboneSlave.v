@@ -1,6 +1,7 @@
 module wishboneSlave
   #( parameter DataBits = 32, // must be a multiple of 8, eg. 8, 16, 24, 32, ...
-     parameter AddrBits = 32 )
+     parameter AddrBits = 32,
+     parameter [AddrBits-1:0] BaseAddress )
    ( input  wire CLK_I,
      input  wire RST_I,
      input  wire [DataBits-1:0] DAT_I,

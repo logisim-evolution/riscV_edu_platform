@@ -2,7 +2,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 entity wishboneMaster is
-  generic ( DataBits : integer := 32,  -- must be a multiple of 8, eg. 8, 16, 24, 32, ...
+  generic ( DataBits : integer := 32;  -- must be a multiple of 8, eg. 8, 16, 24, 32, ...
             AddrBits : integer := 32 );
   port ( CLK_I    : in  std_logic;
          RST_I    : in  std_logic;

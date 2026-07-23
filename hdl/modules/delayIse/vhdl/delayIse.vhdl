@@ -28,7 +28,6 @@ architecture plaformIndependant of delayIse is
   constant tickReloadValue : integer := refferenceClockFrequencyInHz / 1000000;
   constant nrOfBits : integer := integer(ceil(log2(real(tickReloadValue))));
   constant zeroVector : std_logic_vector( W_DATA-1 downto 0 ) := (others => '0');
-  constant oneVector  : std_logic_vector( W_DATA-1 downto 0 ) := (0 => '1', others => '0');
 
   signal s_isMyCi           : std_logic;
   signal s_done_reg         : std_logic;
@@ -89,8 +88,8 @@ begin
                Q        => s_microSecTick );
 
   -- here we define the main counter
-  s_delayCountZero <= '1' when std_logic_vector(s_delayCountReg) = zeroVector else '0';
-  s_delayCountOne  <= '1' when std_logic_vector(s_delayCountReg) = oneVector else '0';
+  s_delayCountZero <= '1' when s_delayCountReg = to_unsigned(0, W_DATA) else '0';
+  s_delayCountOne  <= '1' when s_delayCountReg = to_unsigned(1, W_DATA) else '0';
   s_delayCountNext <= (others => '0') when reset = '1' else
                       unsigned( ci_dataa ) when s_isMyCi = '1' and ci_datab(1) = '0' else
                       s_delayCountReg - to_unsigned(1, W_DATA) when s_microSecTick = '1' and s_delayCountZero = '0' else s_delayCountReg;
