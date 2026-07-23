@@ -1,5 +1,5 @@
 module customInstruction 
-  #(parameter customId = 7'd0,
+  #(parameter [6:0] customId = 7'd0,
     parameter W_DATA = 32) // see hazard3 for value
    ( input  wire clock,
      input  wire reset, // active high
