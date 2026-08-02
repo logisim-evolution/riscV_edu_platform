@@ -1,5 +1,6 @@
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -26,6 +27,7 @@ public class busGeneratorDraw extends JPanel implements MouseListener, ActionLis
 
   @Override
   public void paint(Graphics g) {
+    g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
     final var myBounds = super.getBounds();
     g.clearRect(0, 0, myBounds.width, myBounds.height);
     final var components = parent.getBusComponents();

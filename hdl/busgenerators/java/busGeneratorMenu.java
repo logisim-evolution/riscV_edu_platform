@@ -9,6 +9,7 @@ public class busGeneratorMenu extends JMenuBar {
   public static String fileSaveAction = "save";
   public static String fileSaveAsAction = "save as";
   public static String fileLoadAction = "load";
+  public static String fileExportTikZ = "export TikZ";
   public static String memMapRenumberAll = "renumber all";
   public static String memMapRenumberOverlap = "fix overlap";
   public static String generateShared = "shared bus";
@@ -17,6 +18,7 @@ public class busGeneratorMenu extends JMenuBar {
   private JMenuItem fileSave = new JMenuItem(fileSaveAction);
   private JMenuItem fileSaveAs = new JMenuItem(fileSaveAsAction);
   private JMenuItem fileLoad = new JMenuItem(fileLoadAction);
+  private JMenuItem filrTikZExport = new JMenuItem(fileExportTikZ);
   private JMenu memMap = new JMenu("Memory map");
   private JMenuItem memRenAll = new JMenuItem(memMapRenumberAll);
   private JMenuItem memRnOverlap = new JMenuItem(memMapRenumberOverlap);
@@ -32,6 +34,8 @@ public class busGeneratorMenu extends JMenuBar {
     fileSaveAs.setMnemonic('a');
     fileMenu.add(fileLoad);
     fileLoad.setMnemonic('l');
+    fileMenu.add(filrTikZExport);
+    filrTikZExport.setMnemonic('T');
     fileMenu.add(fileExit);
     fileExit.setMnemonic('x');
     this.add(memMap);
@@ -54,5 +58,6 @@ public class busGeneratorMenu extends JMenuBar {
     memRnOverlap.addActionListener(listener);
     fileLoad.addActionListener(listener);
     shared.addActionListener(listener);
+    filrTikZExport.addActionListener(listener);
   }
 }

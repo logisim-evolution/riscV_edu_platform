@@ -4,6 +4,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -75,7 +76,7 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
     this.setTitle(myTitle+"*");
   }
 
-  private static DocumentBuilderFactory getHardenedBuilderFactory() {
+  public static DocumentBuilderFactory getHardenedBuilderFactory() {
     var dbf = DocumentBuilderFactory.newInstance();
     var feature = "";
     try {
@@ -268,6 +269,10 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
     return false;
   }
 
+  public busGeneratorDraw getDrawPane() {
+    return drawPane;
+  }
+
   @Override
   public void actionPerformed(ActionEvent e) {
     final var arg = e.getActionCommand();
@@ -296,6 +301,16 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
     if (arg.equals(busGeneratorMenu.fileSaveAction)) {
       if (changed) {
         writeXml();
+      }
+    }
+    if (arg.equals(busGeneratorMenu.fileExportTikZ)) {
+      final var exp = new TikZWriter();
+      drawPane.paint(exp);
+      final var out = new File("test.tikz");
+      try {
+        exp.writeFile(out);
+      } catch (IOException err) {
+        System.out.println(err);
       }
     }
     if (arg.equals(busGeneratorMenu.fileSaveAsAction)) {
