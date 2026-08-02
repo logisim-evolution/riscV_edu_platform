@@ -19,5 +19,6 @@ entity wishboneMaster is
          STB_O    : out std_logic;
          -- TGA_O and TGC_O are not implemented
          WE_O     : out std_logic;
-         CTI_O    : out std_logic_vector( 2 downto 0 ) ); -- Registered feedback
+         CTI_O    : out std_logic_vector( 2 downto 0 );
+         BTE_O    : out std_logic_vector( 1 downto 0 ) ); -- Registered feedback
 end wishboneMaster;

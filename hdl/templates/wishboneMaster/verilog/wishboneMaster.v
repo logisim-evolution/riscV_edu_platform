@@ -16,5 +16,6 @@ module wishboneMaster
      output wire STB_O,
      // TGA_O and TGC_O are not implemented
      output wire WE_O,
-     output wire [2:0] CTI_O // Registered feedback
+     output wire [2:0] CTI_O, // Registered feedback
+     output wire [1:0] BTE_O
 );

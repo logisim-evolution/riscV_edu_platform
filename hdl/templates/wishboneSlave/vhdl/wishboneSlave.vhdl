@@ -1,10 +1,11 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 entity wishboneSlave is
   generic ( DataBits    : integer := 32;  -- must be a multiple of 8, eg. 8, 16, 24, 32, ...
             AddrBits    : integer := 32;
-            BaseAddress : integer := 0x00000000);
+            BaseAddress : std_logic_vector := std_logic_vector(to_unsigned(0,32)));
   port ( CLK_I    : in  std_logic;
          RST_I    : in  std_logic;
          DAT_I    : in  std_logic_vector( DataBits-1 downto 0 );
@@ -20,5 +21,6 @@ entity wishboneSlave is
          STB_I    : in  std_logic;
          -- TGA_O and TGC_O are not implemented
          WE_I     : in  std_logic;
-         CTI_I    : in  std_logic_vector( 2 downto 0 ) ); -- Registered feedback
+         CTI_I    : in  std_logic_vector( 2 downto 0 );
+         BTE_I    : in  std_logic_vector( 1 downto 0 ) ); -- Registered feedback
 end wishboneSlave;

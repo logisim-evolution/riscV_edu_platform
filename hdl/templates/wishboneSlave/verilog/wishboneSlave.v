@@ -17,5 +17,6 @@ module wishboneSlave
      input  wire STB_I,
      // TGA_O and TGC_O are not implemented
      input  wire WE_I,
-     input  wire [2:0] CTI_I // Registered feedback
+     input  wire [2:0] CTI_I, // Registered feedback
+     input  wire [1:0] BTE_I
 );
