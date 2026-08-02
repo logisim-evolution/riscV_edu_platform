@@ -43,7 +43,10 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
   private boolean changed = false;
   private static String myTitle = "Wishbone bus generator";
   private String fileName = "";
-  private static final FileNameExtensionFilter filter = new FileNameExtensionFilter("Xml files", "xml");
+  private static final FileNameExtensionFilter XMLfilter = new FileNameExtensionFilter("Xml files", "xml");
+  private static final FileNameExtensionFilter TikZfilter = new FileNameExtensionFilter("TikZ files", "tikz");
+  private static final FileNameExtensionFilter SVGfilter = new FileNameExtensionFilter("SVG files", "svg");
+  private static final FileNameExtensionFilter Texfilter = new FileNameExtensionFilter("LaTex files", "tex");
 
   busGeneratorFrame() {
     final var con = this.getContentPane();
@@ -98,7 +101,7 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
     return dbf;
   }
 
-  private boolean writeXml() {
+  private boolean exportXml(String exportFileName) {
     if (busComponents.isEmpty()) {
       return true;
     }
@@ -113,20 +116,6 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
       return false;
     }
     final var doc = docBuilder.newDocument();
-    if (fileName.isEmpty()) {
-      final var fc = new JFileChooser();
-      fc.setDialogTitle("Save a bus generator file");
-      fc.setFileFilter(filter);
-      final var res = fc.showOpenDialog(this);
-      if (res == JFileChooser.APPROVE_OPTION) {
-        fileName = fc.getSelectedFile().getAbsolutePath();
-        if (!fileName.toLowerCase().endsWith(".xml")) {
-          fileName += ".xml";
-        }
-      } else {
-        return true;
-      }
-    }
     final var ret = doc.createElement("WishBoneBusDescription");
     doc.appendChild(ret);
     ret.appendChild(doc.createTextNode("\nThis file is intended to be loaded by busGenerator\n"));
@@ -137,7 +126,7 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
     }
     FileOutputStream fileOut;
     try {
-      fileOut = new FileOutputStream(fileName);
+      fileOut = new FileOutputStream(exportFileName);
     } catch (FileNotFoundException e) {
       return false;
     }
@@ -174,15 +163,36 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
     } catch (IOException e) {
       return false;
     }
-    changed = false;
-    this.setTitle(myTitle);
     return true;
+  }
+
+  private boolean writeXml() {
+    if (fileName.isEmpty()) {
+      final var fc = new JFileChooser();
+      fc.setDialogTitle("Save a bus generator file");
+      fc.setFileFilter(XMLfilter);
+      final var res = fc.showOpenDialog(this);
+      if (res == JFileChooser.APPROVE_OPTION) {
+        fileName = fc.getSelectedFile().getAbsolutePath();
+        if (!fileName.toLowerCase().endsWith(".xml")) {
+          fileName += ".xml";
+        }
+      } else {
+        return true;
+      }
+    }
+    final var result = exportXml(fileName);
+    if (result) {
+      changed = false;
+      this.setTitle(myTitle);
+    }
+    return result;
   }
 
   private boolean readXml() {
     final var fc = new JFileChooser();
     fc.setDialogTitle("Load a bus generator file");
-    fc.setFileFilter(filter);
+    fc.setFileFilter(XMLfilter);
     final var res = fc.showOpenDialog(this);
     if (res == JFileChooser.APPROVE_OPTION) {
       fileName = fc.getSelectedFile().getAbsolutePath();
@@ -269,6 +279,98 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
     return false;
   }
 
+  private void exportImage(boolean isSvg, String fileName) {
+    final var exp = new TikZWriter();
+    final var filter = (isSvg) ? SVGfilter : TikZfilter;
+    final var name = (isSvg) ? "SVG" : "TikZ";
+    final var suffix = (isSvg) ? ".svg" : ".tikz";
+    final var fc = new JFileChooser();
+    fc.setDialogTitle(String.format("Export a %s file:", name));
+    fc.setFileFilter(filter);
+    var exportName = fileName;
+    final var showDialog = fileName == null;
+    if (exportName == null) {
+      final var res = fc.showOpenDialog(this);
+      if (res == JFileChooser.APPROVE_OPTION) {
+        exportName = fc.getSelectedFile().getAbsolutePath();
+        if (!exportName.toLowerCase().endsWith(suffix)) {
+          exportName += suffix;
+        }
+      } else {
+        return;
+      }
+    }
+    drawPane.paint(exp);
+    if (isSvg) {
+      final var out = new File(exportName);
+      final var bounds = drawPane.getPreferredSize();
+      try {
+        exp.writeSvg(bounds.width, bounds.height, out);
+      } catch (ParserConfigurationException | TransformerException err ) {
+        System.out.println(err);
+      }
+    } else {
+      final var out = new File(exportName);
+      try {
+        exp.writeFile(out);
+      } catch (IOException err) {
+        System.out.println(err);
+      }
+    }
+    if (showDialog) {
+      JOptionPane.showMessageDialog(this, "Successfully exported image");
+    }
+  }
+
+  private void exportMemMapLatex() {
+    final var fc = new JFileChooser();
+    fc.setDialogTitle(String.format("Export a mem map latex file:"));
+    fc.setFileFilter(Texfilter);
+    final var res = fc.showOpenDialog(this);
+    if (res == JFileChooser.APPROVE_OPTION) {
+      var exportName = fc.getSelectedFile().getAbsolutePath();
+      if (!exportName.toLowerCase().endsWith(".tex")) {
+        exportName += ".tex";
+      }
+      if (memMap.exportLatexTable(exportName)) {
+        JOptionPane.showMessageDialog(this, "Successfully exported LaTex memory map");
+      }
+    }
+  }
+
+  private boolean generateBundle() {
+    final var fc = new JFileChooser();
+    fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+    fc.setDialogTitle("Select the directory where to put the HDL files");
+    final var res = fc.showOpenDialog(this);
+    if (res == JFileChooser.APPROVE_OPTION) {
+      final var baseDirectory = fc.getSelectedFile().getAbsolutePath()+File.separator;
+      final var docDirectory = "doc"+File.separator;
+      var newDir = new File(baseDirectory+docDirectory);
+      if (!newDir.exists()) {
+        if (!newDir.mkdir()) {
+          return false;
+        }
+      }
+      final var xmlFile = baseDirectory+"wishBone.xml";
+      if (!exportXml(xmlFile)) {
+        return false;
+      }
+      final var imageFile = baseDirectory+docDirectory+"busLayout";
+      exportImage(false, imageFile+".tikz");
+      exportImage(true, imageFile+".svg");
+      if (!busGeneratorSharedBusGenerator.createHdlFiles(this, baseDirectory)) {
+        return false;
+      }
+      final var latexFile = baseDirectory+docDirectory+"memoryMap.tex";
+      if (!memMap.exportLatexTable(latexFile)) {
+        return false;
+      }
+      JOptionPane.showMessageDialog(this, "Successfully exported all files");
+    }
+    return false;
+  }
+
   public busGeneratorDraw getDrawPane() {
     return drawPane;
   }
@@ -276,9 +378,19 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
   @Override
   public void actionPerformed(ActionEvent e) {
     final var arg = e.getActionCommand();
+    if (arg.equals(busGeneratorMenu.generateAll)) {
+      if (generateBundle()) {
+        JOptionPane.showMessageDialog(this, "Successfully created the bundle");
+      }
+    }
+    if (arg.equals(busGeneratorMenu.memMapLatex)) {
+      exportMemMapLatex();
+    }
     if (arg.equals(busGeneratorMenu.generateShared)) {
       if (!busGeneratorSharedBusGenerator.createHdlFiles(this)) {
         System.out.println("Something went wrong");
+      } else {
+        JOptionPane.showMessageDialog(this, "Successfully exported HDL");
       }
     }
     if (arg.equals(busGeneratorMenu.fileLoadAction)) {
@@ -296,6 +408,13 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
       }
     }
     if (arg.equals(busGeneratorMenu.fileExitAction)) {
+      if (changed) {
+        final var res = JOptionPane.showConfirmDialog(this, "The current architecture has changes\nShould I save?", "Changes", JOptionPane.YES_NO_OPTION);
+        if (res == JOptionPane.YES_OPTION) {
+          writeXml();
+          changed = false;
+        }
+      }
       System.exit(0);
     }
     if (arg.equals(busGeneratorMenu.fileSaveAction)) {
@@ -304,14 +423,10 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
       }
     }
     if (arg.equals(busGeneratorMenu.fileExportTikZ)) {
-      final var exp = new TikZWriter();
-      drawPane.paint(exp);
-      final var out = new File("test.tikz");
-      try {
-        exp.writeFile(out);
-      } catch (IOException err) {
-        System.out.println(err);
-      }
+      exportImage(false, null);
+    }
+    if (arg.equals(busGeneratorMenu.fileExportSVG)) {
+      exportImage(true, null);
     }
     if (arg.equals(busGeneratorMenu.fileSaveAsAction)) {
       fileName = "";

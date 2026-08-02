@@ -11,6 +11,8 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
+import java.io.FileWriter;
+import java.io.IOException;
 
 public class busGeneratorMemmap extends JPanel {
   private busGeneratorFrame parent;
@@ -257,5 +259,51 @@ public class busGeneratorMemmap extends JPanel {
         lastSlave = thisSlave;
       }
     }
+  }
+
+  public boolean exportLatexTable(String filename) {
+    try {
+      final var file = new FileWriter(filename);
+      file.write("""
+      \\begin{tabular}{|c|l|c|}
+        \\hline
+        \\textbf{Address range:}&\\textbf{Slave Name:}&\\textbf{Size:}\\\\
+        \\hline
+        \\hline
+      """);
+      final var slaves = getSlaves();
+      var currentAddr = 0L;
+      var W_ADDR = 32;
+      for (var slaveEntry : slaves.entrySet()) {
+        final var slave = slaveEntry.getValue();
+        W_ADDR = slave.getNrOfAddressBits();
+        if (currentAddr < slave.getBaseAddress()) {
+          file.write(String.format("""
+            \\texttt{%s}&%s&\\texttt{%s}\\\\
+            \\hline
+          """, busGeneratorObject.getAddressRange(W_ADDR, currentAddr, slave.getBaseAddress()-1L),
+          "empty", ""));
+        }
+        file.write(String.format("""
+          \\texttt{%s}&%s&\\texttt{%s}\\\\
+          \\hline
+        """, slave.getAddressRange(),
+        slave.getName(), slave.getSizeString()));
+        currentAddr = Math.max(currentAddr, slave.getEndAddress() + 1L);
+      }
+      final var endAddr = 1L << W_ADDR;
+      if (currentAddr < endAddr) {
+        file.write(String.format("""
+          \\texttt{%s}&%s&\\texttt{%s}\\\\
+          \\hline
+        """, busGeneratorObject.getAddressRange(W_ADDR, currentAddr, endAddr-1L),
+        "empty", ""));
+      }
+      file.write("\\end{tabular}\n");
+      file.close();
+    } catch (IOException e) {
+      return false;
+    }
+    return true;
   }
 }

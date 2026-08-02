@@ -32,7 +32,7 @@ public class busGeneratorSharedBusGenerator {
   private TreeMap<Long, busHdlComponent> slaves = new TreeMap<Long, busHdlComponent>();
   private int W_ADDR = 0;
   private int W_DATA = 0;
-  private String baseDirectory;
+  private String baseDirectory = null;
   private static String vhdlDir = "vhdl"+File.separator;
   private static String verilogDir = "verilog"+File.separator;
   private static String vhdlExtention = ".vhdl";
@@ -90,7 +90,7 @@ public class busGeneratorSharedBusGenerator {
       1
   };
 
-  private busGeneratorSharedBusGenerator(busGeneratorFrame parent) {
+  private void generateMySelf(busGeneratorFrame parent) {
     for (var item : parent.getBusComponents()) {
       if (W_ADDR == 0) {
         W_ADDR = item.getNrOfAddressBits();
@@ -104,12 +104,14 @@ public class busGeneratorSharedBusGenerator {
         masters.put(item.getMasterPriority(), new busHdlComponent(item));
       }
     }
-    final var fc = new JFileChooser();
-    fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-    fc.setDialogTitle("Select the directory where to put the HDL files");
-    final var res = fc.showOpenDialog(parent);
-    if (res == JFileChooser.APPROVE_OPTION) {
-      baseDirectory = fc.getSelectedFile().getAbsolutePath()+File.separator;
+    if (baseDirectory == null) {
+      final var fc = new JFileChooser();
+      fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+      fc.setDialogTitle("Select the directory where to put the HDL files");
+      final var res = fc.showOpenDialog(parent);
+      if (res == JFileChooser.APPROVE_OPTION) {
+        baseDirectory = fc.getSelectedFile().getAbsolutePath()+File.separator;
+      }
     }
     masterDataBusIn = busGeneratorWishboneSignals.getMasterInputMap().get(busGeneratorWishboneSignals.datInEntry);
     slaveDataBusIn = busGeneratorWishboneSignals.getSlaveInputMap().get(busGeneratorWishboneSignals.datInEntry);
@@ -120,11 +122,20 @@ public class busGeneratorSharedBusGenerator {
     nrOfMasters = maxIndex + 1;
   }
 
+  private busGeneratorSharedBusGenerator(busGeneratorFrame parent) {
+    generateMySelf(parent);
+  }
+
+  private busGeneratorSharedBusGenerator(busGeneratorFrame parent, String directory) {
+    this.baseDirectory = directory;
+    generateMySelf(parent);
+  }
+
   public boolean canGenerate() {
     if (baseDirectory == null || baseDirectory.isBlank()){
       return false;
     }
-     var newDir = new File(baseDirectory+vhdlDir);
+    var newDir = new File(baseDirectory+vhdlDir);
     if (!newDir.exists()) {
       if (!newDir.mkdir()) {
         return false;
@@ -947,7 +958,11 @@ public class busGeneratorSharedBusGenerator {
   }
 
   public static boolean createHdlFiles(busGeneratorFrame parent) {
-    final var myGenerator = new busGeneratorSharedBusGenerator(parent);
+    return createHdlFiles(parent, null);
+  }
+
+  public static boolean createHdlFiles(busGeneratorFrame parent, String directory) {
+    final var myGenerator = new busGeneratorSharedBusGenerator(parent, directory);
     if (!myGenerator.canGenerate()) {
       return false;
     }
