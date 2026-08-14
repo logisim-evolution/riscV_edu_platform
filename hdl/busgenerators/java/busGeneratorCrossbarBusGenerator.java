@@ -60,7 +60,7 @@ public class busGeneratorCrossbarBusGenerator extends busGeneratorSharedBusGener
         final var masterAddrName = master.getSignals().get(busGeneratorWishboneSignals.addrEntry).getName();
         final var target = arbiterBusLocks+String.format(index, idx);
         final var condition = (isVHDL) ?
-          String.format("(unsigned(%s) >= unsigned(%s) and unsigned(%s) <= unsigned(%s)", 
+          String.format("(unsigned(%s) >= unsigned(%s) and unsigned(%s) <= unsigned(%s))", 
             masterAddrName, busGeneratorWishboneSignals.BaseAddressGeneric,
             masterAddrName, busGeneratorWishboneSignals.EndAddressGeneric) :
           String.format("%s >= %s && %s <= %s", 
@@ -82,7 +82,7 @@ public class busGeneratorCrossbarBusGenerator extends busGeneratorSharedBusGener
         final var masterAddrName = master.getSignals().get(busGeneratorWishboneSignals.addrEntry).getName();
         final var target = arbiterBusCycs+String.format(index, idx);
         final var condition = (isVHDL) ?
-          String.format("(unsigned(%s) >= unsigned(%s) and unsigned(%s) <= unsigned(%s)", 
+          String.format("(unsigned(%s) >= unsigned(%s) and unsigned(%s) <= unsigned(%s))", 
             masterAddrName, busGeneratorWishboneSignals.BaseAddressGeneric,
             masterAddrName, busGeneratorWishboneSignals.EndAddressGeneric) :
           String.format("%s >= %s && %s <= %s", 
@@ -195,7 +195,6 @@ public class busGeneratorCrossbarBusGenerator extends busGeneratorSharedBusGener
         if (idx == busGeneratorWishboneSignals.ackEntry) {
           result.append((isVHDL) ? String.format("  signal s_%s : std_logic;\n", sig.getName()) :
             String.format("  wire s_%s;\n", sig.getName()));
-          continue;
         }
         if (idx == busGeneratorWishboneSignals.clockEntry ||
             idx == busGeneratorWishboneSignals.resetEntry ||
