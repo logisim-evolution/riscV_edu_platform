@@ -6,6 +6,7 @@ public class busGeneratorPortType {
   private String genericName;
   private int fixedNrOfBits;
   private boolean needsToBeMasked = false;
+  private boolean isSysCon = false;
 
   private busGeneratorPortType(String name, boolean isInput, String genericBits, boolean mask) {
     this.name = (isInput) ? name+"_I" : name+"_O";
@@ -47,6 +48,18 @@ public class busGeneratorPortType {
 
   public static busGeneratorPortType getMaskedOutputPin(String name, int nrOfBits) {
     return new busGeneratorPortType(name, false, nrOfBits, true);
+  }
+
+  public boolean isSysCon() {
+    return isSysCon;
+  }
+
+  public void setSysCon() {
+    isSysCon = true;
+  }
+
+  public boolean isOutput() {
+    return !isAnInput;
   }
 
   public boolean isGeneric() {
@@ -153,16 +166,24 @@ public class busGeneratorPortType {
     return getVerilogType()+getMaskedSignalName()+";";
   }
 
+  public String getMapSignalName(String slaveName) {
+    return (slaveName == null || slaveName.isBlank()) ? "s_"+getName() : "s_"+slaveName+"_"+getName();
+  }
+
   public String getMapSignalName() {
-    return "s_"+getName();
+    return getMapSignalName(null);
+  }
+
+  public String getMapSignalDefinition(boolean isVHDL, String slaveName) {
+    if (isVHDL) {
+      return "  signal "+getMapSignalName(slaveName)+" : "+getVhdlType()+";\n";
+    } else {
+      return "  "+getVerilogType()+getMapSignalName(slaveName)+";\n";
+    }
   }
 
   public String getMapSignalDefinition(boolean isVHDL) {
-    if (isVHDL) {
-      return "  signal "+getMapSignalName()+" : "+getVhdlType()+";\n";
-    } else {
-      return "  "+getVerilogType()+getMapSignalName()+";\n";
-    }
+    return getMapSignalDefinition(isVHDL, null);
   }
 
   private static String getSignalRest(String name, int nrOfBits, boolean isVHDL) {

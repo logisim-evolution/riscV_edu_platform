@@ -15,6 +15,7 @@ public class busGeneratorMenu extends JMenuBar {
   public static String memMapRenumberOverlap = "fix overlap";
   public static String memMapLatex = "export latex table";
   public static String generateShared = "shared bus";
+  public static String generateCrossbar = "crossbar bus";
   public static String generateAll = "project bundle";
   private JMenu fileMenu = new JMenu("File");
   private JMenuItem fileExit = new JMenuItem(fileExitAction);
@@ -29,6 +30,7 @@ public class busGeneratorMenu extends JMenuBar {
   private JMenuItem memLatex = new JMenuItem(memMapLatex);
   private JMenu generate = new JMenu("Generate");
   private JMenuItem shared = new JMenuItem(generateShared); 
+  private JMenuItem crossbar = new JMenuItem(generateCrossbar);
   private JMenuItem bundle = new JMenuItem(generateAll);
 
   busGeneratorMenu() {
@@ -61,6 +63,8 @@ public class busGeneratorMenu extends JMenuBar {
     generate.setMnemonic('G');
     generate.add(shared);
     shared.setMnemonic('s');
+    generate.add(crossbar);
+    crossbar.setMnemonic('c');
     generate.addSeparator();
     generate.add(bundle);
     bundle.setMnemonic('b');
@@ -75,6 +79,7 @@ public class busGeneratorMenu extends JMenuBar {
     memLatex.addActionListener(listener);
     fileLoad.addActionListener(listener);
     shared.addActionListener(listener);
+    crossbar.addActionListener(listener);
     fileTikZExport.addActionListener(listener);
     fileSVGExport.addActionListener(listener);
     bundle.addActionListener(listener);

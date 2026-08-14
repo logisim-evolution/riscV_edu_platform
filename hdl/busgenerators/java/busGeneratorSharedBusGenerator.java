@@ -8,7 +8,7 @@ import javax.swing.JFileChooser;
 
 public class busGeneratorSharedBusGenerator {
 
-  private class busHdlComponent {
+  public class busHdlComponent {
     private busGeneratorObject object;
     private ArrayList<busGeneratorPortType> signals;
 
@@ -28,26 +28,26 @@ public class busGeneratorSharedBusGenerator {
     }
   }
   
-  private TreeMap<Integer, busHdlComponent> masters = new TreeMap<Integer, busHdlComponent>();
-  private TreeMap<Long, busHdlComponent> slaves = new TreeMap<Long, busHdlComponent>();
-  private int W_ADDR = 0;
-  private int W_DATA = 0;
-  private String baseDirectory = null;
-  private static String vhdlDir = "vhdl"+File.separator;
-  private static String verilogDir = "verilog"+File.separator;
-  private static String vhdlExtention = ".vhdl";
-  private static String verilogExtention = ".v";
-  private static String busTopLevelName = "wishBoneSharedBusTop";
-  private static String busTopTemplateName = "wishBoneSharedBusTemplate";
-  private static String arbiterBusCycs = "s_arbiterMasterCycs";
-  private static String arbiterBusLocks = "s_arbiterMasterLocks";
-  private static String arbiterBusEnables = "s_arbiterBusEnables";
-  private static String arbiterGeneric = "priorityScheme";
-  private static String arbiterError = "s_arbiterErrorOut";
-  private static String masterDataBusIn; 
-  private static String slaveDataBusIn;
-  private static int nrOfMasters;
-  private static String[] arbiterInternalSignals = {
+  TreeMap<Integer, busHdlComponent> masters = new TreeMap<Integer, busHdlComponent>();
+  TreeMap<Long, busHdlComponent> slaves = new TreeMap<Long, busHdlComponent>();
+  int W_ADDR = 0;
+  int W_DATA = 0;
+  String baseDirectory = null;
+  static String vhdlDir = "vhdl"+File.separator;
+  static String verilogDir = "verilog"+File.separator;
+  static String vhdlExtention = ".vhdl";
+  static String verilogExtention = ".v";
+  String busTopLevelName = "wishBoneSharedBusTop";
+  String busTopTemplateName = "wishBoneSharedBusTemplate";
+  static String arbiterBusCycs = "s_arbiterMasterCycs";
+  static String arbiterBusLocks = "s_arbiterMasterLocks";
+  static String arbiterBusEnables = "s_arbiterBusEnables";
+  static String arbiterGeneric = "priorityScheme";
+  static String arbiterError = "s_arbiterErrorOut";
+  static String masterDataBusIn; 
+  static String slaveDataBusIn;
+  static int nrOfMasters;
+  static String[] arbiterInternalSignals = {
       "s_arbiterMaskReg",
       "s_arbiterEnablesReg",
       "s_arbiterTimeOutReg",
@@ -122,11 +122,11 @@ public class busGeneratorSharedBusGenerator {
     nrOfMasters = maxIndex + 1;
   }
 
-  private busGeneratorSharedBusGenerator(busGeneratorFrame parent) {
+  busGeneratorSharedBusGenerator(busGeneratorFrame parent) {
     generateMySelf(parent);
   }
 
-  private busGeneratorSharedBusGenerator(busGeneratorFrame parent, String directory) {
+  busGeneratorSharedBusGenerator(busGeneratorFrame parent, String directory) {
     this.baseDirectory = directory;
     generateMySelf(parent);
   }
@@ -150,7 +150,7 @@ public class busGeneratorSharedBusGenerator {
     return true;
   }
 
-  private String getRemark(String remark, int indent, boolean isVHDL) {
+  public String getRemark(String remark, int indent, boolean isVHDL) {
     final var lines = remark.split("\n");
     final var result = new StringBuilder();
     if (lines.length == 1) {
@@ -177,7 +177,7 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getPreamble(boolean isVHDL) {
+  public String getPreamble(boolean isVHDL, String name, boolean slaveGeneric) {
     final var result = new StringBuilder();
     if (isVHDL) {
       result.append("""
@@ -186,26 +186,38 @@ public class busGeneratorSharedBusGenerator {
       use ieee.numeric_std.all;
 
       """);
-      result.append(String.format("entity %s is\n", busTopLevelName));
+      result.append(String.format("entity %s is\n", name));
       result.append(String.format("  generic( %s : integer := %d;\n", 
           busGeneratorWishboneSignals.DataBitsGeneric, W_DATA));
       result.append(String.format("           %s : integer := %d;\n",
           busGeneratorWishboneSignals.AddressBitsGeneric, W_ADDR));
+      if (slaveGeneric) {
+        result.append(String.format("           %s : std_logic_vector;\n", 
+          busGeneratorWishboneSignals.BaseAddressGeneric));
+        result.append(String.format("           %s : std_logic_vector;\n", 
+          busGeneratorWishboneSignals.EndAddressGeneric));
+      }
       result.append(String.format("           %s : integer := 1);", arbiterGeneric));
       result.append("  port (\n");
     } else {
-      result.append(String.format("module %s\n", busTopLevelName));
+      result.append(String.format("module %s\n", name));
       result.append(String.format("  #( parameter %s = %d,\n",
           busGeneratorWishboneSignals.DataBitsGeneric, W_DATA));
       result.append(String.format("     parameter %s = %d,\n",
           busGeneratorWishboneSignals.AddressBitsGeneric, W_ADDR));
-      result.append(String.format("     parameter %s = 1)", arbiterGeneric));
+      if (slaveGeneric) {
+        result.append(String.format("     parameter %s,\n", 
+          busGeneratorWishboneSignals.BaseAddressGeneric));
+        result.append(String.format("     parameter %s,\n", 
+          busGeneratorWishboneSignals.EndAddressGeneric));
+      }
+      result.append(String.format("     parameter %s = 1)\n", arbiterGeneric));
       result.append("   (\n");
     }
     return result.toString();
   }
 
-  private String getPorts(boolean isVHDL) {
+  public String getMasterPorts(boolean isVHDL, boolean supressSyscon) {
     final var result = new StringBuilder();
     for (var masterEnty : masters.keySet()) {
       final var master = masters.get(masterEnty);
@@ -218,6 +230,9 @@ public class busGeneratorSharedBusGenerator {
       """);
       result.append(getRemark(masterRemark.toString(), 4, isVHDL));
       for (var signal : masterPorts) {
+        if (supressSyscon && signal.isSysCon()) {
+          continue;
+        }
         if (isVHDL) {
           result.append("    "+signal.getVHDLPort(true)+";\n");
         } else {
@@ -226,6 +241,11 @@ public class busGeneratorSharedBusGenerator {
       }
       result.append("\n");
     }
+    return result.toString();
+  }
+
+  public String getSlavePorts(boolean isVHDL, TreeMap<Long, busHdlComponent> slaves) {
+    final var result = new StringBuilder();
     for (var slaveEnty : slaves.keySet()) {
       final var slave = slaves.get(slaveEnty);
       final var slavePorts = slave.getSignals();
@@ -245,6 +265,11 @@ public class busGeneratorSharedBusGenerator {
       }
       result.append("\n");
     }
+    return result.toString();
+  }
+
+  public String getSysconPort(boolean isVHDL, String name) {
+    final var result = new StringBuilder();
     final var sysconRemark = new StringBuilder();
     sysconRemark.append("""
     Here the Syscon connections are defined
@@ -258,8 +283,8 @@ public class busGeneratorSharedBusGenerator {
           CLK_O : in  std_logic;
           RST_O : in  std_logic);
       """);
-      result.append(String.format("end entity %s;\n\n", busTopLevelName));
-      result.append(String.format("architecture autogenerated of %s is\n\n", busTopLevelName));
+      result.append(String.format("end entity %s;\n\n", name));
+      result.append(String.format("architecture autogenerated of %s is\n\n", name));
     } else {
       result.append("""
           input wire CLK_O,
@@ -270,7 +295,15 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getSignals(boolean isVHDL) {
+  private String getPorts(boolean isVHDL) {
+    final var result = new StringBuilder();
+    result.append(getMasterPorts(isVHDL, false));
+    result.append(getSlavePorts(isVHDL, slaves));
+    result.append(getSysconPort(isVHDL, busTopLevelName));
+    return result.toString();
+  }
+
+  public String getSignals(boolean isVHDL, TreeMap<Long, busHdlComponent> slaves, boolean withTimeout) {
     final var result = new StringBuilder();
     for (var masterEntry : masters.keySet()) {
       final var master = masters.get(masterEntry);
@@ -282,49 +315,58 @@ public class busGeneratorSharedBusGenerator {
         }
       }
     }
-    for (var slaveEntry : slaves.keySet()) {
-      final var slave = slaves.get(slaveEntry);
-      final var slaveSignals = slave.getSignals();
-      for (var signal : slaveSignals) {
-        final var sig = (isVHDL) ? signal.getVhdlMaskedSignalDefinition() : signal.getVerilogMaskedSignalDefinition();
-        if (sig != null) {
-          result.append("  "+sig+"\n");
+    if (slaves != null) {
+      for (var slaveEntry : slaves.keySet()) {
+        final var slave = slaves.get(slaveEntry);
+        final var slaveSignals = slave.getSignals();
+        for (var signal : slaveSignals) {
+          final var sig = (isVHDL) ? signal.getVhdlMaskedSignalDefinition() : signal.getVerilogMaskedSignalDefinition();
+          if (sig != null) {
+            result.append("  "+sig+"\n");
+          }
         }
       }
     }
-    final var masterSignals = busGeneratorWishboneSignals.getMasterSignals("");
-    final var masterInpSignals = busGeneratorWishboneSignals.getMasterInputMap();
-    for (var entry : masterInpSignals.keySet()) {
-      final var sigName = masterInpSignals.get(entry);
-      final var masterEntry = masterSignals.get(entry);
-      final var isGeneric = masterEntry.isGeneric();
-      final var genericName = masterEntry.getGeneric();
-      final var bits = masterEntry.getNrOfBits();
-      if (isGeneric) {
-        result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, genericName, isVHDL)+"\n");
-      } else {
-        result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, bits, isVHDL)+"\n");
+    if (slaves != null) {
+      final var masterSignals = busGeneratorWishboneSignals.getMasterSignals("");
+      final var masterInpSignals = busGeneratorWishboneSignals.getMasterInputMap();
+      for (var entry : masterInpSignals.keySet()) {
+        final var sigName = masterInpSignals.get(entry);
+        final var masterEntry = masterSignals.get(entry);
+        final var isGeneric = masterEntry.isGeneric();
+        final var genericName = masterEntry.getGeneric();
+        final var bits = masterEntry.getNrOfBits();
+        if (isGeneric) {
+          result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, genericName, isVHDL)+"\n");
+        } else {
+          result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, bits, isVHDL)+"\n");
+        }
       }
-    }
-    final var slaveSignals = busGeneratorWishboneSignals.getMasterSignals("");
-    final var slaveInpSignals = busGeneratorWishboneSignals.getSlaveInputMap();
-    for (var entry : slaveInpSignals.keySet()) {
-      final var sigName = slaveInpSignals.get(entry);
-      final var slaveEntry = slaveSignals.get(entry);
-      final var isGeneric = slaveEntry.isGeneric();
-      final var genericName = slaveEntry.getGeneric();
-      final var bits = slaveEntry.getNrOfBits();
-      if (isGeneric) {
-        result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, genericName, isVHDL)+"\n");
-      } else {
-        result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, bits, isVHDL)+"\n");
+      final var slaveSignals = busGeneratorWishboneSignals.getMasterSignals("");
+      final var slaveInpSignals = busGeneratorWishboneSignals.getSlaveInputMap();
+      for (var entry : slaveInpSignals.keySet()) {
+        final var sigName = slaveInpSignals.get(entry);
+        final var slaveEntry = slaveSignals.get(entry);
+        final var isGeneric = slaveEntry.isGeneric();
+        final var genericName = slaveEntry.getGeneric();
+        final var bits = slaveEntry.getNrOfBits();
+        if (isGeneric) {
+          result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, genericName, isVHDL)+"\n");
+        } else {
+          result.append("  "+busGeneratorPortType.getSignalDefinition(sigName, bits, isVHDL)+"\n");
+        }
       }
     }
     result.append("  "+busGeneratorPortType.getSignalDefinition(arbiterBusCycs, nrOfMasters, isVHDL)+"\n");
     result.append("  "+busGeneratorPortType.getSignalDefinition(arbiterBusLocks, nrOfMasters, isVHDL)+"\n");
     result.append("  "+busGeneratorPortType.getSignalDefinition(arbiterBusEnables, nrOfMasters, isVHDL)+"\n");
-    result.append("  "+busGeneratorPortType.getSignalDefinition(arbiterError, 1, isVHDL)+"\n");
+    if (withTimeout) {
+      result.append("  "+busGeneratorPortType.getSignalDefinition(arbiterError, 1, isVHDL)+"\n");
+    }
     for (var idx = 0; idx < arbiterInternalSignals.length; idx++) {
+      if (!withTimeout && (idx == 2 || idx == 10)) {
+        continue;
+      }
       final var nrOfBits = (arbiterNrOfBits[idx] < 0) ? nrOfMasters : arbiterNrOfBits[idx];
       final var isReg = arbiterIsVerilogReg[idx];
       final var name = arbiterInternalSignals[idx];
@@ -334,14 +376,14 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getAssignment(String destination, String source, boolean isVHDL) {
+  public String getAssignment(String destination, String source, boolean isVHDL) {
     if (isVHDL) {
       return destination+" <= "+source+";";
     }
     return "assign "+destination+" = "+source+";";
   }
 
-  private String getSyscon(boolean isVHDL) {
+  public String getSyscon(boolean isVHDL) {
     final var result = new StringBuilder();
     result.append(getRemark(" Here we connect all clocks and resets to the syscon", 2, isVHDL));
     for (var masterEntry : masters.keySet()) {
@@ -358,7 +400,7 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getArbiterCons(boolean isVHDL) {
+  public String getArbiterCons(boolean isVHDL) {
     final var result = new StringBuilder();
     result.append(getRemark(" Here the arbiter signals are mapped", 2, isVHDL));
     final var index = (isVHDL) ? "(%d)" : "[%d]";
@@ -387,7 +429,7 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getWhenElse(String dest, String cond, String valTrue, String valFalse, boolean isVHDL) {
+  public String getWhenElse(String dest, String cond, String valTrue, String valFalse, boolean isVHDL) {
     final var result = new StringBuilder();
     result.append((isVHDL) ? "  " : "  assign ");
     result.append(dest);
@@ -401,21 +443,23 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getMaskedDefinitions(boolean isVHDL) {
+  public String getMaskedDefinitions(boolean isVHDL, TreeMap<Long, busHdlComponent> slaves) {
     final var result = new StringBuilder();
-    result.append(getRemark(" Here the masked slave signals are defined", 2, isVHDL));
-    for (var slaveEntry : slaves.keySet()) {
-      final var slave = slaves.get(slaveEntry);
-      final var ackName = slave.getSignals().get(busGeneratorWishboneSignals.ackEntry).getName();
-      final var ackCond = (isVHDL) ? ackName+" = '1'" : ackName+" == 1'b1";
-      for (var slaveSig : slave.getSignals()) {
-        final var maskedSlaveSig = slaveSig.getMaskedSignalName();
-        if (maskedSlaveSig != null) {
-          result.append(getWhenElse(maskedSlaveSig, ackCond, slaveSig.getName(), slaveSig.getZeroString(isVHDL), isVHDL));
+    if (slaves != null) {
+      result.append(getRemark(" Here the masked slave signals are defined", 2, isVHDL));
+      for (var slaveEntry : slaves.keySet()) {
+        final var slave = slaves.get(slaveEntry);
+        final var ackName = slave.getSignals().get(busGeneratorWishboneSignals.ackEntry).getName();
+        final var ackCond = (isVHDL) ? ackName+" = '1'" : ackName+" == 1'b1";
+        for (var slaveSig : slave.getSignals()) {
+          final var maskedSlaveSig = slaveSig.getMaskedSignalName();
+          if (maskedSlaveSig != null) {
+            result.append(getWhenElse(maskedSlaveSig, ackCond, slaveSig.getName(), slaveSig.getZeroString(isVHDL), isVHDL));
+          }
         }
       }
+      result.append("\n");
     }
-    result.append("\n");
     result.append(getRemark(" Here the masked master signals are defined", 2, isVHDL));
     for (var masterEntry : masters.keySet()) {
       final var master = masters.get(masterEntry);
@@ -433,7 +477,7 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getDataConnetions(boolean isVHDL) {
+  public String getDataConnetions(boolean isVHDL) {
     final var result = new StringBuilder();
     result.append(getRemark(" Here the slave -> master databus is defined", 2, isVHDL));
     for (var masterEntry : masters.keySet()) {
@@ -479,7 +523,7 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getMasterConnections(boolean isVHDL) {
+  public String getMasterConnections(boolean isVHDL) {
     final var result = new StringBuilder();
     final var masterInputs = busGeneratorWishboneSignals.getMasterInputMap();
     result.append(getRemark(" Here all master inputs are mapped", 2, isVHDL));
@@ -492,7 +536,7 @@ public class busGeneratorSharedBusGenerator {
         }
         final var andOpp = (isVHDL) ? " and " : " & ";
         final var enaVarIndex = (isVHDL) ? String.format("(%d)", masterEntry) :
-            String.format("[%d]]", masterEntry);
+            String.format("[%d]", masterEntry);
         result.append("  "+getAssignment(masterSignals.get(inp).getName(), 
             masterInputs.get(inp)+andOpp+arbiterBusEnables+enaVarIndex, isVHDL)+"\n");
       }
@@ -565,13 +609,15 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private String getArbiter(boolean isVHDL) {
+  public String getArbiter(boolean isVHDL, boolean withTimeout) {
     final var result = new StringBuilder();
     result.append(getRemark(" Here the arbiter is defined", 2, isVHDL));
     result.append("  "+getAssignment(arbiterBusEnables, arbiterInternalSignals[1], isVHDL)+"\n");
     final var andOpp = (isVHDL) ? "and" : "&";
-    var str = String.format("%s %s %s", arbiterInternalSignals[3], andOpp, arbiterInternalSignals[10]);
-    result.append("  "+getAssignment(arbiterError, str, isVHDL)+"\n");
+    if (withTimeout) {
+      var str = String.format("%s %s %s", arbiterInternalSignals[3], andOpp, arbiterInternalSignals[10]);
+      result.append("  "+getAssignment(arbiterError, str, isVHDL)+"\n");
+    }
     final var zeroIdx = (isVHDL) ? "(0)" : "[0]";
     final var notOpp = (isVHDL) ? "not " : "~";
     final var zeroVal = (isVHDL) ? "'0'" : "1'b0";
@@ -594,12 +640,14 @@ public class busGeneratorSharedBusGenerator {
           arbiterBusCycs, arbiterInternalSignals[1], nrOfMasters, arbiterBusLocks, arbiterInternalSignals[1], nrOfMasters);
     }
     result.append(getWhenElse(arbiterInternalSignals[11], cond, arbiterInternalSignals[3], zeroVal, isVHDL));
-    if (isVHDL) {
-      cond = String.format("%s = x\"0000\"", arbiterInternalSignals[2]);
-    } else {
-      cond = String.format("%s == 16'd0", arbiterInternalSignals[2]);
+    if (withTimeout) {
+      if (isVHDL) {
+        cond = String.format("%s = x\"0000\"", arbiterInternalSignals[2]);
+      } else {
+        cond = String.format("%s == 16'd0", arbiterInternalSignals[2]);
+      }
+      result.append(getWhenElse(arbiterInternalSignals[10], cond, oneVal, zeroVal, isVHDL));
     }
-    result.append(getWhenElse(arbiterInternalSignals[10], cond, oneVal, zeroVal, isVHDL));
     if (isVHDL) {
       cond = String.format("%s = 1 or %s = \"%s\"", arbiterGeneric, arbiterInternalSignals[7], zero);
     } else {
@@ -679,19 +727,21 @@ public class busGeneratorSharedBusGenerator {
 
         """, arbiterInternalSignals[9], arbiterInternalSignals[0], 
             arbiterInternalSignals[8], arbiterInternalSignals[3], arbiterInternalSignals[0]));
-        result.append(String.format("""
-          arb_3 : process( CLK_O ) is
-          begin
-            if (rising_edge(CLK_O)) then
-              if (%s = '0' or %s = '1') then
-                %s <= (others => '1');
-              elsif (%s = '0') then
-                %s <= std_logic_vector(unsigned(%s) - to_unsigned(1,16));
+        if (withTimeout) {
+          result.append(String.format("""
+            arb_3 : process( CLK_O ) is
+            begin
+              if (rising_edge(CLK_O)) then
+                if (%s = '0' or %s = '1') then
+                  %s <= (others => '1');
+                elsif (%s = '0') then
+                  %s <= std_logic_vector(unsigned(%s) - to_unsigned(1,16));
+                end if;
               end if;
-            end if;
-          end process arb_3;
-        """, arbiterInternalSignals[3], AckSignal, arbiterInternalSignals[2], arbiterInternalSignals[10],
-            arbiterInternalSignals[2], arbiterInternalSignals[2]));
+            end process arb_3;
+          """, arbiterInternalSignals[3], AckSignal, arbiterInternalSignals[2], arbiterInternalSignals[10],
+              arbiterInternalSignals[2], arbiterInternalSignals[2]));
+        }
       } else {
         result.append("""
           always @(posedge CLK_O)
@@ -703,8 +753,10 @@ public class busGeneratorSharedBusGenerator {
           arbiterInternalSignals[1], arbiterInternalSignals[11], nrOfMasters, arbiterInternalSignals[9], arbiterInternalSignals[8], arbiterInternalSignals[1]));
         result.append(String.format("    %s <= (%s == 1'b1) ? %s : (%s == 1'b0) ? %d'd0 : %s;\n", 
           arbiterInternalSignals[0], arbiterInternalSignals[9], arbiterInternalSignals[8], arbiterInternalSignals[3], nrOfMasters, arbiterInternalSignals[0]));
-        result.append(String.format("    %s <= (%s == 1'b0 || %s == 1'b1) ? {16{1'b1}} : (%s == 1'b0) ? %s - 16'd1 : %s;\n", 
-          arbiterInternalSignals[2], arbiterInternalSignals[3], AckSignal, arbiterInternalSignals[10], arbiterInternalSignals[2], arbiterInternalSignals[2]));
+        if (withTimeout) {
+          result.append(String.format("    %s <= (%s == 1'b0 || %s == 1'b1) ? {16{1'b1}} : (%s == 1'b0) ? %s - 16'd1 : %s;\n", 
+            arbiterInternalSignals[2], arbiterInternalSignals[3], AckSignal, arbiterInternalSignals[10], arbiterInternalSignals[2], arbiterInternalSignals[2]));
+        }
         result.append("  end\n");
       }
       result.append("\n");
@@ -904,42 +956,9 @@ public class busGeneratorSharedBusGenerator {
     return result.toString();
   }
 
-  private boolean generateHdl() {
-    var filenameVHDL = baseDirectory+vhdlDir+busTopLevelName+vhdlExtention;
-    var fileNameVerilog = baseDirectory+verilogDir+busTopLevelName+verilogExtention;
-    try {
-      final var vhdlFile = new FileWriter(filenameVHDL);
-      final var verilogFile = new FileWriter(fileNameVerilog);
-      vhdlFile.write(getPreamble(true));
-      verilogFile.write(getPreamble(false));
-      vhdlFile.write(getPorts(true));
-      verilogFile.write(getPorts(false));
-      vhdlFile.write(getSignals(true));
-      verilogFile.write(getSignals(false));
-      vhdlFile.write("begin\n\n");
-      vhdlFile.write(getSyscon(true));
-      verilogFile.write(getSyscon(false));
-      vhdlFile.write(getArbiterCons(true));
-      verilogFile.write(getArbiterCons(false));
-      vhdlFile.write(getMaskedDefinitions(true));
-      verilogFile.write(getMaskedDefinitions(false));
-      vhdlFile.write(getDataConnetions(true));
-      verilogFile.write(getDataConnetions(false));
-      vhdlFile.write(getMasterConnections(true));
-      verilogFile.write(getMasterConnections(false));
-      vhdlFile.write(getSlaveSignals(true));
-      verilogFile.write(getSlaveSignals(false));
-      vhdlFile.write(getArbiter(true));
-      verilogFile.write(getArbiter(false));
-      vhdlFile.write("end architecture autogenerated;\n");
-      verilogFile.write("endmodule");
-      vhdlFile.close();
-      verilogFile.close();
-    } catch (IOException e) {
-      return false;
-    }
-    filenameVHDL = baseDirectory+vhdlDir+busTopTemplateName+vhdlExtention;
-    fileNameVerilog = baseDirectory+verilogDir+busTopTemplateName+verilogExtention;
+  private boolean generateTemplate() {
+    var filenameVHDL = baseDirectory+vhdlDir+busTopTemplateName+vhdlExtention;
+    var fileNameVerilog = baseDirectory+verilogDir+busTopTemplateName+verilogExtention;
     try {
       final var vhdlFile = new FileWriter(filenameVHDL);
       final var verilogFile = new FileWriter(fileNameVerilog);
@@ -957,16 +976,52 @@ public class busGeneratorSharedBusGenerator {
     return true;
   }
 
-  public static boolean createHdlFiles(busGeneratorFrame parent) {
-    return createHdlFiles(parent, null);
-  }
-
-  public static boolean createHdlFiles(busGeneratorFrame parent, String directory) {
-    final var myGenerator = new busGeneratorSharedBusGenerator(parent, directory);
-    if (!myGenerator.canGenerate()) {
+  public boolean gegerateBus() {
+    var filenameVHDL = baseDirectory+vhdlDir+busTopLevelName+vhdlExtention;
+    var fileNameVerilog = baseDirectory+verilogDir+busTopLevelName+verilogExtention;
+    try {
+      final var vhdlFile = new FileWriter(filenameVHDL);
+      final var verilogFile = new FileWriter(fileNameVerilog);
+      vhdlFile.write(getPreamble(true, busTopLevelName, false));
+      verilogFile.write(getPreamble(false, busTopLevelName, false));
+      vhdlFile.write(getPorts(true));
+      verilogFile.write(getPorts(false));
+      vhdlFile.write(getSignals(true, slaves, true));
+      verilogFile.write(getSignals(false, slaves, true));
+      vhdlFile.write("begin\n\n");
+      vhdlFile.write(getSyscon(true));
+      verilogFile.write(getSyscon(false));
+      vhdlFile.write(getArbiterCons(true));
+      verilogFile.write(getArbiterCons(false));
+      vhdlFile.write(getMaskedDefinitions(true, slaves));
+      verilogFile.write(getMaskedDefinitions(false, slaves));
+      vhdlFile.write(getDataConnetions(true));
+      verilogFile.write(getDataConnetions(false));
+      vhdlFile.write(getMasterConnections(true));
+      verilogFile.write(getMasterConnections(false));
+      vhdlFile.write(getSlaveSignals(true));
+      verilogFile.write(getSlaveSignals(false));
+      vhdlFile.write(getArbiter(true, true));
+      verilogFile.write(getArbiter(false, true));
+      vhdlFile.write("end architecture autogenerated;\n");
+      verilogFile.write("endmodule");
+      vhdlFile.close();
+      verilogFile.close();
+    } catch (IOException e) {
       return false;
     }
-    if (!myGenerator.generateHdl()) {
+    return true;
+  }
+
+  boolean generateHdl() {
+    return gegerateBus() && generateTemplate();
+  }
+
+  public boolean createHdlFiles() {
+    if (!canGenerate()) {
+      return false;
+    }
+    if (!generateHdl()) {
       return false;
     }
     return true;

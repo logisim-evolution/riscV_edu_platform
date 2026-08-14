@@ -5,6 +5,7 @@ public class busGeneratorWishboneSignals {
   public static String DataBitsGeneric = "DataBits";
   public static String AddressBitsGeneric = "AddrBits";
   public static String BaseAddressGeneric = "BaseAddress";
+  public static String EndAddressGeneric = "EndAddress";
   public static int clockEntry = 0;
   public static int resetEntry = 1;
   public static int ackEntry = 4;
@@ -12,6 +13,7 @@ public class busGeneratorWishboneSignals {
   public static int cycEntry = 6;
   public static int datInEntry = 2;
   public static int datOutEntry = 3;
+  public static int addrEntry = 5;
   public static int errorEntry = 7;
   private static String[] busNames = {"CLK","RST","DAT","DAT","ACK","ADDR","CYC","ERR","LOCK","SEL","STB","WE","CTI","BTE"};
 
@@ -22,7 +24,7 @@ public class busGeneratorWishboneSignals {
     result.add(busGeneratorPortType.getGenericInputPin(busNames[2], DataBitsGeneric));
     result.add(busGeneratorPortType.getMaskedGenericOutputPin(busNames[3], DataBitsGeneric));
     result.add(busGeneratorPortType.getInputPin(busNames[4], 1));
-    result.add(busGeneratorPortType.getGenericOutputPin(busNames[5], AddressBitsGeneric));
+    result.add(busGeneratorPortType.getMaskedGenericOutputPin(busNames[5], AddressBitsGeneric));
     result.add(busGeneratorPortType.getMaskedOutputPin(busNames[6], 1));
     result.add(busGeneratorPortType.getInputPin(busNames[7], 1));
     result.add(busGeneratorPortType.getMaskedOutputPin(busNames[8], 1));
@@ -36,6 +38,8 @@ public class busGeneratorWishboneSignals {
         port.setPrefix(prefix);
       }
     }
+    result.get(clockEntry).setSysCon();
+    result.get(resetEntry).setSysCon();
     return result;
   }
 
@@ -79,6 +83,8 @@ public class busGeneratorWishboneSignals {
         port.setPrefix(prefix);
       }
     }
+    result.get(clockEntry).setSysCon();
+    result.get(resetEntry).setSysCon();
     return result;
   }
 

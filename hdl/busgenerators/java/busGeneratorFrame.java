@@ -359,7 +359,10 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
       final var imageFile = baseDirectory+docDirectory+"busLayout";
       exportImage(false, imageFile+".tikz");
       exportImage(true, imageFile+".svg");
-      if (!busGeneratorSharedBusGenerator.createHdlFiles(this, baseDirectory)) {
+      if (!new busGeneratorSharedBusGenerator(this, baseDirectory).createHdlFiles()) {
+        return false;
+      }
+      if (!new busGeneratorCrossbarBusGenerator(this, baseDirectory).createHdlFiles()) {
         return false;
       }
       final var latexFile = baseDirectory+docDirectory+"memoryMap.tex";
@@ -387,7 +390,14 @@ public class busGeneratorFrame extends JFrame implements ActionListener {
       exportMemMapLatex();
     }
     if (arg.equals(busGeneratorMenu.generateShared)) {
-      if (!busGeneratorSharedBusGenerator.createHdlFiles(this)) {
+      if (!new busGeneratorSharedBusGenerator(this).createHdlFiles()) {
+        System.out.println("Something went wrong");
+      } else {
+        JOptionPane.showMessageDialog(this, "Successfully exported HDL");
+      }
+    }
+    if (arg.equals(busGeneratorMenu.generateCrossbar)) {
+      if (!new busGeneratorCrossbarBusGenerator(this).createHdlFiles()) {
         System.out.println("Something went wrong");
       } else {
         JOptionPane.showMessageDialog(this, "Successfully exported HDL");
