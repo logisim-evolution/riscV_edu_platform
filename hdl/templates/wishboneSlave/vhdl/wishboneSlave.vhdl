@@ -23,4 +23,4 @@ entity wishboneSlave is
          WE_I     : in  std_logic;
          CTI_I    : in  std_logic_vector( 2 downto 0 );
          BTE_I    : in  std_logic_vector( 1 downto 0 ) ); -- Registered feedback
-end wishboneSlave;
+end entity wishboneSlave;

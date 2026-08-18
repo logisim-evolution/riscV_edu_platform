@@ -1,0 +1,97 @@
+m255
+K4
+z2
+!s11e vcom 2020.1 2020.02, Feb 28 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 d/home/ktt1/git/riscV_edu_platform/hdl/modules/logic_analyzer/vhdl
+Elogicanalysercore
+Z1 w1787047185
+Z2 DPx4 ieee 11 numeric_std 0 22 aU^R8eGcicLcUFIaBQSL>3
+Z3 DPx3 std 6 textio 0 22 zE1`LPoLg^DX3Oz^4Fj1K3
+Z4 DPx4 ieee 14 std_logic_1164 0 22 cVAk:aDinOX8^VGI1ekP<3
+!i122 8
+R0
+Z5 8logicAnalyserCore.vhdl
+Z6 FlogicAnalyserCore.vhdl
+l0
+L5 1
+VQHMoid=Y=7=]DKMRCD=nJ0
+!s100 l>QIWeFg0AW?ljgB>iY_R3
+Z7 OV;C;2020.1;71
+32
+Z8 !s110 1787047222
+!i10b 1
+Z9 !s108 1787047222.000000
+Z10 !s90 logicAnalyserCore.vhdl|
+Z11 !s107 logicAnalyserCore.vhdl|
+!i113 1
+Z12 tExplicit 1 CvgOpt 0
+Aplatformindependant
+Z13 DPx4 ieee 9 math_real 0 22 gNk<PdFJ<XNPcfef`f?Z81
+Z14 DEx4 work 15 ssrampseudodual 0 22 OUK[bnjh3=VcAmZIcm^MJ3
+R2
+R3
+R4
+Z15 DEx4 work 17 logicanalysercore 0 22 QHMoid=Y=7=]DKMRCD=nJ0
+!i122 8
+l54
+Z16 L34 210
+Z17 Vd>[nho<D;mA:8<EHo;U^_2
+Z18 !s100 73Ae6RzQO2:fUWRQfDVO40
+R7
+32
+R8
+!i10b 1
+R9
+R10
+R11
+!i113 1
+R12
+Essrampseudodual
+Z19 w1787025603
+R13
+R2
+R3
+R4
+!i122 7
+R0
+Z20 8ssramPseudoDual.vhdl
+Z21 FssramPseudoDual.vhdl
+l0
+L6 1
+VOUK[bnjh3=VcAmZIcm^MJ3
+!s100 0VjcY0G[ID5gMmFN>g?Wn3
+R7
+32
+Z22 !s110 1787047219
+!i10b 1
+Z23 !s108 1787047219.000000
+Z24 !s90 ssramPseudoDual.vhdl|
+Z25 !s107 ssramPseudoDual.vhdl|
+!i113 1
+R12
+Anoplatformspecific
+R13
+R2
+R3
+R4
+R14
+!i122 7
+l23
+L17 19
+VDz`>e9dEC:l05XNf@g9dm2
+!s100 RZK7<j5D=K@EABGCDn4b@0
+R7
+32
+R22
+!i10b 1
+R23
+R24
+R25
+!i113 1
+R12
