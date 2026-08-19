@@ -1,0 +1,37 @@
+# vsim -t ps leds 
+# Start time: 11:04:46 on Aug 19,2026
+# Loading work.leds
+add wave -hex *
+force CLK_I 0 0 , 1 1 -repeat 2
+force RST_I 1 0 , 0 10
+force DAT_I 16#FFFFFFFF
+force ADDR_i 16#50000000
+# ** UI-Msg (suppressible): (vsim-4008) Object 'ADDR_i' not found.
+# 
+force ADDR_I 16#50000000
+force CYC_I 0
+force SEL_I 0000
+force STB_I 0
+force WE_I 0
+force CTI_I 000
+force oneKhzTick 0 0 , 1 8 -repeat 10
+run 20
+force CYC_I 1 0 , 0 4
+force WE_I 1 0 , 0 4
+force SEL_I 1111 0, 0000 4
+force STB_I 1 0 , 0 4
+run 20
+force CYC_I 1 0 , 0 8
+force WE_I 1 0 , 0 8
+force SEL_I 1111 0, 0000 8
+force STB_I 1 0 , 0 8
+run 20
+force CYC_I 1 0 , 0 8
+force WE_I 1 0 , 0 8
+force SEL_I 1111 0, 0000 8
+force STB_I 1 0 , 0 8
+force ADDR_I 16#50000000 0 , 16#50000004 4
+run 20
+quit -f
+# End time: 11:30:24 on Aug 19,2026, Elapsed time: 0:25:38
+# Errors: 0, Warnings: 0

@@ -1,0 +1,109 @@
+\documentclass[a4paper,twoside,12pt]{article}
+%
+\usepackage{amsmath}
+\usepackage[latin9]{inputenc}
+\usepackage{exercise}
+\usepackage[english]{babel}
+\usepackage{tcolorbox}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{multirow}
+%
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\usepackage{graphicx}
+\fancyhead{} % clear all header fields
+\fancyhead[CE,CO] {\bfseries LED array controller}
+\fancyfoot{} % clear all footer fields
+\fancyfoot[LE,LO]{\bfseries ties.kluter@epfl.ch}
+\fancyfoot[CE,CO]{\thepage}
+\fancyfoot[RO,RE]{\bfseries CS-473}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\newtcolorbox{important}{width=\textwidth,colback=red!55,colframe=red!95,title=WICHTIG:}
+%
+\begin{document}
+There are two modes in which the LED-Array can be accessed, namely line-based and pixel based. Each of the below section will describe these access modi. Note that:
+\begin{itemize}
+\item On the GECKO5Education there is an RGB-array that uses a scanning frequency of 1kHz.
+\item The intensity of the LED's cannot be controlled (they are either on or off).
+\item This module supports burst mode, or single word mode. Short or byte access will result in a bus-error.
+\end{itemize}
+\section{Line-based control}
+The base address of the line-based control of the LED-array is \texttt{0x50000800}. The offset inside this control mode is 10-bit (byte based) or 8-bit (word based). The functionality of these offset bits is shown below:
+\begin{center}
+\begin{tabular}{ccc}
+\textbf{Byte-based offset:}&&\textbf{Word-based offset:}\\
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|}
+\hline
+\textbf{9}&\textbf{8}&\textbf{7}&\textbf{6}&\textbf{5}&\textbf{4}&\textbf{3}&\textbf{2}&\textbf{1}&\textbf{0}\\
+\hline
+\hline
+\multicolumn{2}{|c}{access}&\multicolumn{4}{|c}{line}&\multicolumn{2}{|c|}{color}&\multirow{2}{*}{0}&\multirow{2}{*}{0}\\
+\multicolumn{2}{|c}{mode}&\multicolumn{4}{|c}{index}&\multicolumn{2}{|c|}{mode}&&\\
+\hline
+\end{tabular}&
+\hspace*{0.5cm}&
+\begin{tabular}{|c|c|c|c|c|c|c|c|}
+\hline
+\textbf{7}&\textbf{6}&\textbf{5}&\textbf{4}&\textbf{3}&\textbf{2}&\textbf{1}&\textbf{0}\\
+\hline
+\hline
+\multicolumn{2}{|c}{access}&\multicolumn{4}{|c}{line}&\multicolumn{2}{|c|}{color}\\
+\multicolumn{2}{|c}{mode}&\multicolumn{4}{|c}{index}&\multicolumn{2}{|c|}{mode}\\
+\hline
+\end{tabular}\\
+\end{tabular}
+\end{center}
+The different items are:
+\begin{itemize}
+\item \textbf{Color mode:} The color mode defines which of the LED's are activated in the selected line of LED's. Their definition is:
+\begin{center}
+\begin{tabular}{|c|l|}
+\hline
+\textbf{Value:}&\textbf{Mode:}\\
+\hline
+\hline
+\texttt{0}&Write to the blue LED's of the line.\\
+\hline
+\texttt{1}&Write to the green LED's of the line.\\
+\hline
+\texttt{2}&Write to the red LED's of the line.\\
+\hline
+\texttt{3}&Write to the red,green, and blue LED's of the line (white color).\\
+\hline
+\end{tabular}
+\end{center}
+\item \textbf{Line index:} This selects the line of the LED array, where line 0 is the top-most line of the array and line 8/9 the bottom line of the array. Note that when line-index is bigger than 9 this will not do anything.
+\item \textbf{Access mode:} To set or clear a LED, a word is written. In this word the LSB (bit 0) references the right-most LED in the line, and bit 10 the left-most LED in the line. The bits 31..11 of this word are don't care. How the LED's react on a 1 or 0 is determined by the access mode:
+\begin{center}
+\begin{tabular}{|c|l|}
+\hline
+\textbf{Value:}&\textbf{Access mode:}\\
+\hline
+\hline
+\multirow{2}{*}{\texttt{0}}&The bit will be directly written hence a 1 lights up the LED,\\
+&a 0 will turn it off.\\
+\hline
+\multirow{2}{*}{\texttt{1}}&The bit will be or-masked written hence a 1 lights up the LED,\\
+&a 0 will leave it as is.\\
+\hline
+\multirow{2}{*}{\texttt{2}}&The bit will be and-masked written hence a 0 turns off the LED,\\
+&a 1 will leave it as is.\\
+\hline
+\multirow{2}{*}{\texttt{3}}&The bit will be xor-masked written hence a 1 inverts the LED,\\
+& a 0 will leave it as is.\\
+\hline
+\end{tabular}
+\end{center}
+\end{itemize}
+Reading from any of the locations inside this address space will show the current state of the LED's, where the access-mode is ignored.
+\section{Pixel-based control}
+The RGB-array can also be addressed pixel by pixel. The base-address for this mode is \texttt{0x50000C00}. The offset inside this control mode is 9-bit (byte based) or 7-bit (word based), where the offset indicated the pixel inside the array. Offset 0 is the pixel on the left-top and offset 107/119 (short based) is the pixel on the right-bottom.\\
+To each pixel the RGB-value can be written where the red-value is bit 2 of the data-word. The green value is bit 1 of the data-word, and bit 0 is the blue value. Reading from a location will return the current RGB-value of the pixel (LED).
+\section{Writing the base address}
+\textbf{Important:} Do not use this function if you do not know what you are doing, as it could result in funny results.\\
+By default the led controller is at the memory address \texttt{0x50000800}, however, it can be moved in the memory space by writing a complete 32-bit memory address. Please note
+that the bits 9..0 of this address must be 0. The base-address register can be accessed by a word offset of \texttt{0x1FF} from the current base address. Hence in the start-up mode on address \texttt{0x50000FFC}.
+
+\end{document}
