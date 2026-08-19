@@ -165,4 +165,29 @@ module logicAnalyserBus
           endcase
       end
 
+  logicAnalyserCore lac (
+    .CLK_I(CLK_I),
+    .RST_I(RST_I),
+    .resetCore(lacReset),
+    .tappedWires(tappedWires),
+    .postTrigSamples(postTrigSamples),
+    .seqLen(seqLen),
+    .comparator0(comparator0),
+    .comparator1(comparator1),
+    .comparator2(comparator2),
+    .comparator3(comparator3),
+    .mask0(mask0),
+    .mask1(mask1),
+    .mask2(mask2),
+    .mask3(mask3),
+    .reference0(reference0),
+    .reference1(reference1),
+    .reference2(reference2),
+    .reference3(reference3),
+    .done(lacDone),
+    .startAddress(lacStartAddress),
+    .readAddress(lacReadAddress),
+    .dataLow(lacDataLow),
+    .dataHigh(lacDataHigh));
+
 endmodule

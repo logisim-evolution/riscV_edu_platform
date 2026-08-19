@@ -126,7 +126,7 @@ begin
       when DONE      => DAT_O(DataBits-1 downto 1) <= (others => '0');
                         DAT_O(0) <= lacDone;
       when others    => DAT_O(DataBits-1 downto 9) <= (others => '0');
-                        DAT_O(8 downto 0) <= lacReadAddress;
+                        DAT_O(8 downto 0) <= lacStartAddress;
     end case;
   end process readData;
   
@@ -184,4 +184,28 @@ begin
     end if;
   end process writeData;
   
+  lac : entity work.logicAnalyserCore(platformIndependant)
+  port map ( CLK_I           => CLK_I,
+             RST_I           => RST_I,
+             resetCore       => lacReset,
+             tappedWires     => tappedWires,
+             postTrigSamples => postTrigSamples,
+             seqLen          => seqLen,
+             comparator0     => comparator0,
+             comparator1     => comparator1,
+             comparator2     => comparator2,
+             comparator3     => comparator3,
+             mask0           => mask0,
+             mask1           => mask1,
+             mask2           => mask2,
+             mask3           => mask3,
+             reference0      => reference0,
+             reference1      => reference1,
+             reference2      => reference2,
+             reference3      => reference3,
+             done            => lacDone,
+             startAddress    => lacStartAddress,
+             readAddress     => lacReadAddress,
+             dataLow         => lacDataLow,
+             dataHigh        => lacDataHigh);
 end architecture platformIndependent;
