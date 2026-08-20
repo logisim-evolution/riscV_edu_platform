@@ -1,0 +1,109 @@
+\documentclass[a4paper,twoside,12pt]{article}
+%
+\usepackage{amsmath}
+\usepackage[latin9]{inputenc}
+\usepackage{exercise}
+\usepackage[english]{babel}
+\usepackage{tcolorbox}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{multirow}
+%
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\usepackage{graphicx}
+\fancyhead{} % clear all header fields
+\fancyhead[CE,CO] {\bfseries 7-Segments controller specification}
+\fancyfoot{} % clear all footer fields
+\fancyfoot[LE,LO]{\bfseries ties.kluter@epfl.ch}
+\fancyfoot[CE,CO]{\thepage}
+\fancyfoot[RO,RE]{\bfseries CS-473}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\newtcolorbox{important}{width=\textwidth,colback=red!55,colframe=red!95,title=WICHTIG:}
+%
+\begin{document}
+The base address of the seven segment controller is \texttt{0x50000060}. There are different ways to control the seven segments as shown in table~\ref{tab:sevensegs}. Display 1 is the most-right seven segment display, and display 4 the most left seven segment display. This controller only support word (32-bit) transfers, and does not support burst accesses. If these conditions are not met, the controller will
+generate a bus-error.
+\begin{table}
+\begin{tabular}{|c|c|l|l|}
+\hline
+\textbf{byte}&\textbf{word}&\textbf{Write action:}&\textbf{Read action:}\\
+\textbf{offset}&\textbf{offset}&&\\
+\hline
+\hline
+0&0&Write segments of display 1&Read segments of display 1\\
+\hline
+4&1&Write segments of display 2&Read segments of display 2\\
+\hline
+8&2&Write segments of display 3&Read segments of display 3\\
+\hline
+12&3&Write segments of display 4&Read segments of display 4\\
+\hline
+16&4&Write hexadecimal to displays&Read segments of display 1\\
+\hline
+20&5&Write BCD-coded to displays&Read segments of display 2\\
+\hline
+24&6&Write decimal points&Read segments of display 3\\
+\hline
+28&7&Write the base Address&Read the base Address\\
+\hline
+\end{tabular}
+\caption{Offset mapping of the seven segment display control}
+\label{tab:sevensegs}
+\end{table}
+\section{Writing the segments}
+Each of the segments of a seven segment display can be controlled by writing a bit 1 to activate or a bit 0 to deactivate it. The definition of the segments is shown below (based on a \texttt{uint32\_t}):
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+31&..&13&12&11&10&9&8&7&6&5&4&3&2&1&0\\
+\hline
+\hline
+-&-&-&-&-&-&-&-&dp&g&f&e&d&c&b&a\\
+\hline
+\end{tabular}
+\end{center}
+In the above table a \texttt{-} denotes a don't care, and \texttt{dp} the decimal point.
+\section{Writing a hexadecimal value}
+A 16-bit hexadecimal value can also be written directly to the display's. Note that in this case the decimal points retain their current value. To write the hexadecimal value the displays are shown below:
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+31..16&15&14&13&12&11&10&9&8&7&6&5&4&3&2&1&0\\
+\hline
+\hline
+-&\multicolumn{4}{|c}{display4}&\multicolumn{4}{|c}{display3}&\multicolumn{4}{|c}{display2}&\multicolumn{4}{|c|}{display1}\\
+\hline
+\end{tabular}
+\end{center}
+\section{Writing a BCD-value}
+A 16-bit Binary Coded Decimal (BCD) value can also be written directly to the display's. Note that in this case the decimal points retain their current value. Writing a nibble that is out of the range \texttt{0..9} will result in an empty display. To write the BCD-value the displays are shown below:
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+31..16&15&14&13&12&11&10&9&8&7&6&5&4&3&2&1&0\\
+\hline
+\hline
+-&\multicolumn{4}{|c}{display4}&\multicolumn{4}{|c}{display3}&\multicolumn{4}{|c}{display2}&\multicolumn{4}{|c|}{display1}\\
+\hline
+\end{tabular}
+\end{center}
+\section{Writing the decimal points}
+Each of the decimal points of a seven segment display can be controlled by writing a bit 1 to activate or a bit 0 to deactivate it. The definition of the decimal points is shown below (based on a \texttt{uint32\_t}):
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+31&..&13&12&11&10&9&8&7&6&5&4&3&2&1&0\\
+\hline
+\hline
+-&-&-&-&-&-&-&-&-&-&-&-&dp4&dp3&dp2&dp1\\
+\hline
+\end{tabular}
+\end{center}
+In the above table a \texttt{-} denotes a don't care, and \texttt{dpx} the decimal point of display \texttt{x}.
+\section{Writing the base address}
+\textbf{Important:} Do not use this function if you do not know what you are doing, as it could result in funny results.\\
+By default the seven segment controller is at the memory address \texttt{0x50000060}, however, it can be moved in the memory space by writing a complete 32-bit memory address to this location. Please note
+that the bits 4..0 of this address must be 0.
+\end{document}

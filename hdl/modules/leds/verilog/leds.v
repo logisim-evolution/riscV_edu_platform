@@ -33,7 +33,6 @@ module leds
   reg [31:0] baseAddressReg;
   reg [8:0] indexReg;
   reg [31:0] dataInReg;
-  wire [31:0] s_dataOut;
   reg [2:0] s_ledsReg [127:0];
   reg [3:0] s_rowSelectReg;
   wire [2:0] s_ledsNext [127:0];
@@ -46,7 +45,8 @@ module leds
   wire isCorrectTransaction = (CTI_I == 3'b000 && SEL_I == 4'b1111) ? isMyTransaction : 1'b0; // this module only supports clasic word transfers
   assign ERR_O = errorReg;
   assign ACK_O = ackReg;
-  assign DAT_O = s_dataOut;
+  assign DAT_O = (indexReg == 9'b111111111) ? baseAddressReg :
+                 (s_pixelBased == 1'b1) ? {29'd0,s_ledsReg[s_pixelIndex[6:0]]} : {20'd0,s_selectedLine[s_pixelIndex[5:2]]};
 
   always @(posedge CLK_I)
   begin
@@ -59,8 +59,6 @@ module leds
                       (weReg == 1'b1 && indexReg == 9'b111111111) ? dataInReg : baseAddressReg;
   end
   
-  assign s_dataOut = (indexReg == 9'b111111111) ? baseAddressReg :
-                     (s_pixelBased == 1'b1) ? {29'd0,s_ledsReg[s_pixelIndex[6:0]]} : {20'd0,s_selectedLine[s_pixelIndex[5:2]]};
                      
   
   /*
