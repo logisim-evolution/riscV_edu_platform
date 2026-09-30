@@ -49,7 +49,7 @@ module hazard3_dm_ecp5 #(
 
     // Hart instruction injection
     output wire [N_HARTS*32-1:0]     hart_instr_data,
-    output reg  [N_HARTS-1:0]        hart_instr_data_vld,
+    output wire [N_HARTS-1:0]        hart_instr_data_vld,
     input  wire [N_HARTS-1:0]        hart_instr_data_rdy,
     input  wire [N_HARTS-1:0]        hart_instr_caught_exception,
     input  wire [N_HARTS-1:0]        hart_instr_caught_ebreak,
@@ -75,9 +75,9 @@ wire assert_dmi_reset_n;
 wire dmi_psel;
 wire dmi_penable;
 wire dmi_pwrite;
-wire dmi_paddr;
-wire dmi_pwdata;
-wire dmi_prdata;
+wire [W_PADDR-1:0] dmi_paddr;
+wire [31:0]        dmi_pwdata;
+wire [31:0]        dmi_prdata;
 wire dmi_pready;
 wire dmi_pslverr;
 

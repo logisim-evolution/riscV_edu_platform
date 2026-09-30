@@ -5,7 +5,8 @@
             "libraryMapping": {
                 "": "work",
                 "verification/build": [],
-                "hdl/modules/debug/verilog": []
+                "hdl/modules/debug/verilog": [],
+                "hdl/modules/hazard4edu/verilog": "work"
             }
         }
     }
