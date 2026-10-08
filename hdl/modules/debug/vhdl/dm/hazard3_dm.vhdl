@@ -1,6 +1,8 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use ieee.math_real.ceil;
+use ieee.math_real.log2;
 
 -- Original Verilog comments:
 -- /*****************************************************************************\
@@ -92,29 +94,29 @@ entity hazard3_dm is
 	generic (
 		-- Where there are multiple harts per DM, the least-indexed hart is the
 		-- least-significant on each concatenated hart access bus.
-		N_HARTS : natural := 1;
+		N_HARTS : positive := 1;
 		-- Where there are multiple DMs, the address of each DM should be a
 		-- multiple of 'h200, so that bits[8:2] decode correctly.
 		NEXT_DM_ADDR : std_logic_vector(31 downto 0) := x"00000000";
 		-- Implement support for system bus access:
-		HAVE_SBA : natural := 1;	-- TODO Is this a boolean?
+		HAVE_SBA : natural := 1;
 
 		-- Do not modify:
-		XLEN      : natural := 32; -- Do not modify
-		W_HARTSEL : natural := 1 -- N_HARTS > 1 ? $clog2(N_HARTS) : 1 TODO
+		XLEN      : positive := 32; -- Do not modify
+		W_HARTSEL : positive := integer(ceil(log2(real(maximum(2, N_HARTS))))) -- N_HARTS > 1 ? $clog2(N_HARTS) : 1
 	);
 	port (
 		-- DM is assumed to be in same clock domain as core; clock crossing
 		-- (if any) is inside DTM, or between DTM and DM.
-		clk   : in std_logic;
-		rst_n : in std_logic;
+		clk   : in  std_logic;
+		rst_n : in  std_logic;
 
 		-- APB access from Debug Transport Module
-		dmi_psel    : in std_logic;
-		dmi_penable : in std_logic;
-		dmi_pwrite  : in std_logic;
-		dmi_paddr   : in std_logic_vector(8 downto 0);
-		dmi_pwdata  : in std_logic_vector(31 downto 0);
+		dmi_psel    : in  std_logic;
+		dmi_penable : in  std_logic;
+		dmi_pwrite  : in  std_logic;
+		dmi_paddr   : in  std_logic_vector(8 downto 0);
+		dmi_pwdata  : in  std_logic_vector(31 downto 0);
 		dmi_prdata  : out std_logic_vector(31 downto 0);
 		dmi_pready  : out std_logic;
 		dmi_pslverr : out std_logic;
@@ -128,28 +130,28 @@ entity hazard3_dm is
 		-- possible to debug programs from the first instruction executed." So
 		-- this could simply be an all-hart reset.
 		sys_reset_req   : out std_logic;
-		sys_reset_done  : in std_logic;
+		sys_reset_done  : in  std_logic;
 		hart_reset_req  : out std_logic_vector(N_HARTS - 1 downto 0);
-		hart_reset_done : in std_logic_vector(N_HARTS - 1 downto 0);
+		hart_reset_done : in  std_logic_vector(N_HARTS - 1 downto 0);
 
 		-- Hart run/halt control
 		hart_req_halt          : out std_logic_vector(N_HARTS - 1 downto 0);
 		hart_req_halt_on_reset : out std_logic_vector(N_HARTS - 1 downto 0);
 		hart_req_resume        : out std_logic_vector(N_HARTS - 1 downto 0);
-		hart_halted            : in std_logic_vector(N_HARTS - 1 downto 0);
-		hart_running           : in std_logic_vector(N_HARTS - 1 downto 0);
+		hart_halted            : in  std_logic_vector(N_HARTS - 1 downto 0);
+		hart_running           : in  std_logic_vector(N_HARTS - 1 downto 0);
 
 		-- Hart access to data0 CSR (assumed to be core-internal but per-hart)
 		hart_data0_rdata : out std_logic_vector(N_HARTS * XLEN - 1 downto 0);
-		hart_data0_wdata : in std_logic_vector(N_HARTS * XLEN - 1 downto 0);
-		hart_data0_wen   : in std_logic_vector(N_HARTS - 1 downto 0);
+		hart_data0_wdata : in  std_logic_vector(N_HARTS * XLEN - 1 downto 0);
+		hart_data0_wen   : in  std_logic_vector(N_HARTS - 1 downto 0);
 
 		-- Hart instruction injection
 		hart_instr_data             : out std_logic_vector(N_HARTS * 32 - 1 downto 0);
 		hart_instr_data_vld         : out std_logic_vector(N_HARTS - 1 downto 0);
-		hart_instr_data_rdy         : in std_logic_vector(N_HARTS - 1 downto 0);
-		hart_instr_caught_exception : in std_logic_vector(N_HARTS - 1 downto 0);
-		hart_instr_caught_ebreak    : in std_logic_vector(N_HARTS - 1 downto 0);
+		hart_instr_data_rdy         : in  std_logic_vector(N_HARTS - 1 downto 0);
+		hart_instr_caught_exception : in  std_logic_vector(N_HARTS - 1 downto 0);
+		hart_instr_caught_ebreak    : in  std_logic_vector(N_HARTS - 1 downto 0);
 
 		-- System bus access (optional) -- can be hooked up to the standalone AHB
 		-- shim (hazard3_sbus_to_ahb.v) or the SBA input port on the processor
@@ -160,10 +162,10 @@ entity hazard3_dm is
 		sbus_write : out std_logic;
 		sbus_size  : out std_logic_vector(1 downto 0);
 		sbus_vld   : out std_logic;
-		sbus_rdy   : in std_logic;
-		sbus_err   : in std_logic;
+		sbus_rdy   : in  std_logic;
+		sbus_err   : in  std_logic;
 		sbus_wdata : out std_logic_vector(31 downto 0);
-		sbus_rdata : in std_logic_vector(31 downto 0)
+		sbus_rdata : in  std_logic_vector(31 downto 0)
 	);
 end entity hazard3_dm;
 
@@ -250,7 +252,7 @@ architecture rtl of hazard3_dm is
 
 	-- -------------------------------------------------------------------------
 	-- Hart selection
-	signal dmactive_reg : std_logic := '0';
+	signal dmactive_reg : std_logic;
 
 	-- Some fiddliness to make sure we get a single-wide zero-valued signal when 
 	-- N_HARTS == 1 (so we can use this for indexing of per-hart signals)
@@ -314,8 +316,8 @@ architecture rtl of hazard3_dm is
 	signal abstractauto_autoexecprogbuf_reg : std_logic_vector(1 downto 0);
 
 	-- Abstract command state machine
-	signal abstractcs_cmderr_reg         : std_logic_vector(2 downto 0);
-	signal abstractcs_cmderr_next        : std_logic_vector(2 downto 0);
+	signal abstractcs_cmderr_reg        : std_logic_vector(2 downto 0);
+	signal abstractcs_cmderr_next       : std_logic_vector(2 downto 0);
 	signal acmd_state_reg               : std_logic_vector(W_STATE - 1 downto 0);
 	signal acmd_state_next              : std_logic_vector(W_STATE - 1 downto 0);
 	signal start_abstract_cmd           : std_logic;
@@ -365,17 +367,17 @@ architecture rtl of hazard3_dm is
 	end function status_all_any;
 begin
 
-	dmi_write   <= dmi_psel and dmi_penable and dmi_pwrite;
-	dmi_read    <= dmi_psel and dmi_penable and (not dmi_pwrite);
-	dmi_regaddr <= dmi_paddr(8 downto 2);
-	dmi_pready  <= '1';
-	dmi_pslverr <= '0';
-	sys_reset_req <= dmcontrol_ndmreset_reg;
-	hart_reset_req <= dmcontrol_hartreset_reg;
-	hart_req_halt <= dmcontrol_haltreq_reg;
+	dmi_write              <= dmi_psel and dmi_penable and dmi_pwrite;
+	dmi_read               <= dmi_psel and dmi_penable and (not dmi_pwrite);
+	dmi_regaddr            <= dmi_paddr(8 downto 2);
+	dmi_pready             <= '1';
+	dmi_pslverr            <= '0';
+	sys_reset_req          <= dmcontrol_ndmreset_reg;
+	hart_reset_req         <= dmcontrol_hartreset_reg;
+	hart_req_halt          <= dmcontrol_haltreq_reg;
 	hart_req_halt_on_reset <= dmcontrol_resethaltreq_reg;
-	hart_req_resume <= dmcontrol_resumereq_sticky_reg;
-	hart_available <= hart_reset_done and all_harts(sys_reset_done);
+	hart_req_resume        <= dmcontrol_resumereq_sticky_reg;
+	hart_available         <= hart_reset_done and all_harts(sys_reset_done);
 	dmcontrol_ackhavereset <= '1' when dmi_write = '1' and dmi_regaddr = ADDR_DMCONTROL and dmi_pwdata(28) = '1' else '0';
 	-- Hart selection L138-L150
 	has_hartsel : if N_HARTS > 1 generate
@@ -391,7 +393,6 @@ begin
 			hartsel_reg <= (others => '0');
 		elsif rising_edge(clk) then
 			hartsel_reg <= hartsel_next;
-
 			if dmactive_reg = '0' then
 				hartsel_reg <= (others => '0');
 			end if;
@@ -433,9 +434,9 @@ begin
 
 	-- L209-L224
 	dmacontrol_multiple_harts : if N_HARTS > 1 generate
-		dmcontrol_op_mask <= 	( all_harts('0') or (all_harts(hasel_next) and hart_array_mask_reg) ) 
-								when (to_integer(unsigned(hartsel_next)) >= N_HARTS) else 
-								( std_logic_vector(shift_left(to_unsigned(1, N_HARTS), to_integer(unsigned(hartsel_next)))) or (all_harts(hasel_next) and hart_array_mask_reg) );
+		dmcontrol_op_mask <= ( all_harts('0') or (all_harts(hasel_next) and hart_array_mask_reg) ) 
+							   when (to_integer(unsigned(hartsel_next)) >= N_HARTS) else 
+							 ( std_logic_vector(shift_left(to_unsigned(1, N_HARTS), to_integer(unsigned(hartsel_next)))) or (all_harts(hasel_next) and hart_array_mask_reg) );
 	else generate
 		dmcontrol_op_mask <= (others => '1');
 	end generate dmacontrol_multiple_harts;
@@ -443,50 +444,49 @@ begin
 	-- L226-L255
 	process (clk, rst_n) begin
 		if rst_n = '0' then
-			dmactive_reg <= '0';
-			dmcontrol_ndmreset_reg <= '0';
-			dmcontrol_hartreset_reg <= (others => '0');
-			dmcontrol_haltreq_reg <= (others => '0');
+			dmactive_reg 			   <= '0';
+			dmcontrol_ndmreset_reg     <= '0';
+			dmcontrol_hartreset_reg    <= (others => '0');
+			dmcontrol_haltreq_reg      <= (others => '0');
 			dmcontrol_resethaltreq_reg <= (others => '0');
 		elsif rising_edge(clk) then
 			if dmactive_reg = '0' then
 				if dmi_write = '1' and dmi_regaddr = ADDR_DMCONTROL then
 					dmactive_reg <= dmi_pwdata(0);
 				end if;
-				dmcontrol_ndmreset_reg <= '0';
-				dmcontrol_hartreset_reg <= (others => '0');
-				dmcontrol_haltreq_reg <= (others => '0');
+				dmcontrol_ndmreset_reg     <= '0';
+				dmcontrol_hartreset_reg    <= (others => '0');
+				dmcontrol_haltreq_reg      <= (others => '0');
 				dmcontrol_resethaltreq_reg <= (others => '0');
 			elsif dmi_write = '1' and dmi_regaddr = ADDR_DMCONTROL then
-				dmactive_reg <= dmi_pwdata(0);
-				dmcontrol_ndmreset_reg <= dmi_pwdata(1);
-
-				dmcontrol_haltreq_reg <= ( dmcontrol_haltreq_reg and not dmcontrol_op_mask ) or 
-										 ( all_harts(dmi_pwdata(31)) and dmcontrol_op_mask );
-				dmcontrol_hartreset_reg <= ( dmcontrol_hartreset_reg and not dmcontrol_op_mask ) or
-										   ( all_harts(dmi_pwdata(29)) and dmcontrol_op_mask );
-					dmcontrol_resethaltreq_reg <= (dmcontrol_resethaltreq_reg
-													  and not (all_harts(dmi_pwdata(2)) and dmcontrol_op_mask))
-													  or      (all_harts(dmi_pwdata(3)) and dmcontrol_op_mask);
+				dmactive_reg               <= dmi_pwdata(0);
+				dmcontrol_ndmreset_reg     <= dmi_pwdata(1);
+				dmcontrol_haltreq_reg      <= ( dmcontrol_haltreq_reg and not dmcontrol_op_mask ) or 
+										      ( all_harts(dmi_pwdata(31)) and dmcontrol_op_mask );
+				dmcontrol_hartreset_reg    <= ( dmcontrol_hartreset_reg and not dmcontrol_op_mask ) or
+										      ( all_harts(dmi_pwdata(29)) and dmcontrol_op_mask );
+				dmcontrol_resethaltreq_reg <= (dmcontrol_resethaltreq_reg and
+										  not (all_harts(dmi_pwdata(2)) and dmcontrol_op_mask)) 
+										   or (all_harts(dmi_pwdata(3)) and dmcontrol_op_mask);
 			end if;
 		end if;
 	end process;
 
-				process (clk, rst_n)
-				begin
-					if rst_n = '0' then
-						hart_reset_done_prev_reg <= (others => '0');
-					elsif rising_edge(clk) then
-						hart_reset_done_prev_reg <= hart_reset_done;
-					end if;
-				end process;
+	process (clk, rst_n)
+	begin
+		if rst_n = '0' then
+			hart_reset_done_prev_reg <= (others => '0');
+		elsif rising_edge(clk) then
+			hart_reset_done_prev_reg <= hart_reset_done;
+		end if;
+	end process;
 
 	-- L266-272
 	process (clk, rst_n) begin
 		if rst_n = '0' then
 			dmstatus_havereset_reg <= (others => '0');
 		elsif rising_edge(clk) then
-			dmstatus_havereset_reg <= (dmstatus_havereset_reg
+			dmstatus_havereset_reg <=         (dmstatus_havereset_reg
 									  or      (hart_reset_done and not hart_reset_done_prev_reg))
 									  and not (all_harts(dmcontrol_ackhavereset) and dmcontrol_op_mask);
 			
@@ -537,20 +537,21 @@ begin
 					-- Note sbbusyerror and sberror block writes to sbdata0, as the
 					-- write is required to have no side effects when they are set.
 					sbdata_reg <= dmi_pwdata;
-				elsif sbus_vld = '1' and sbus_rdy = '1' and sbus_write = '0' and sbus_err = '0' then
+				elsif sbbusy_reg = '1' and sbus_rdy = '1' and sb_current_is_write_reg = '0' and sbus_err = '0' then
 					-- Make sure the lower byte lanes see appropriately shifted data as
 					-- long as the transfer is naturally aligned
-					with sbaddress_reg(1 downto 0) select
-						sbdata_reg <= (sbus_rdata(31 downto 8)  & sbus_rdata(15 downto 8))  when "01",
-									  (sbus_rdata(31 downto 16) & sbus_rdata(31 downto 16)) when "10",
-									  (sbus_rdata(31 downto 8)  & sbus_rdata(31 downto 24)) when "11",
-									  sbus_rdata											when others;
+					case sbaddress_reg(1 downto 0) is
+						when "01" => sbdata_reg <= sbus_rdata(31 downto 8)  & sbus_rdata(15 downto 8);
+						when "10" => sbdata_reg <= sbus_rdata(31 downto 16) & sbus_rdata(31 downto 16);
+						when "11" => sbdata_reg <= sbus_rdata(31 downto 8)  & sbus_rdata(31 downto 24);
+						when others => sbdata_reg <= sbus_rdata;
+					end case;
 				end if;
 				if dmi_write = '1' and dmi_regaddr = ADDR_SBADDRESS0 and sbbusy_reg = '0' then
 					-- Note sbaddress can't be written when busy, but
 					-- sberror/sbbusyerror do not prevent writes.
 					sbaddress_reg <= dmi_pwdata;
-				elsif sbus_vld = '1' and sbus_rdy = '1' and sbus_err = '0' and sbautoincrement_reg = '1' then
+				elsif sbbusy_reg = '1' and sbus_rdy = '1' and sbus_err = '0' and sbautoincrement_reg = '1' then
 					-- Note: address increments only following a successful transfer.
 					-- Spec 0.13.2 weirdly implies address should increment following
 					-- a sbdata0 read with sbautoincrement=1 and sbreadondata=0, but
@@ -597,7 +598,7 @@ begin
 	-- L407
 	sb_want_start_read <= '1' when (
 		(sbreadonaddr_reg = '1' and dmi_write = '1' and dmi_regaddr = ADDR_SBADDRESS0) or
-		(sbreadonaddr_reg = '1' and dmi_read = '1' and dmi_regaddr = ADDR_SBDATA0)
+		(sbreadondata_reg = '1' and dmi_read = '1' and dmi_regaddr = ADDR_SBDATA0)
 		) else '0';
 	
 	-- L411
@@ -615,39 +616,39 @@ begin
 	-- L420-L470
 	process (clk, rst_n) begin
 		if rst_n = '0' then
-			sbbusy_reg <= '0';
-			sbbusyerror_reg <= '0';
-			sbreadonaddr_reg <= '0';
-			sbreadondata_reg <= '0';
-			sbaccess_reg <= (others => '0');
-			sbautoincrement_reg <= '0';
-			sberror_reg <= SBERROR_OK;
+			sbbusy_reg 				<= '0';
+			sbbusyerror_reg 		<= '0';
+			sbreadonaddr_reg		<= '0';
+			sbreadondata_reg		<= '0';
+			sbaccess_reg 			<= (others => '0');
+			sbautoincrement_reg 	<= '0';
+			sberror_reg 			<= SBERROR_OK;
 			sb_current_is_write_reg <= '0';
 		elsif rising_edge(clk) then
 			if dmactive_reg = '0' then
-				sbbusy_reg <= '0';
-				sbbusyerror_reg <= '0';
-				sbreadonaddr_reg <= '0';
-				sbreadondata_reg <= '0';
-				sbaccess_reg <= (others => '0');
-				sbautoincrement_reg <= '0';
-				sberror_reg <= SBERROR_OK;
+				sbbusy_reg 				<= '0';
+				sbbusyerror_reg 		<= '0';
+				sbreadonaddr_reg 		<= '0';
+				sbreadondata_reg 		<= '0';
+				sbaccess_reg 			<= (others => '0');
+				sbautoincrement_reg 	<= '0';
+				sberror_reg 			<= SBERROR_OK;
 				sb_current_is_write_reg <= '0';
 			elsif HAVE_SBA = 1 then
 				if dmi_write = '1' and dmi_regaddr = ADDR_SBCS then
-					sbbusyerror_reg <= sbbusyerror_reg and not dmi_pwdata(22);
-					sbreadonaddr_reg <= dmi_pwdata(20);
-					sbaccess_reg <= dmi_pwdata(19 downto 17);
+					sbbusyerror_reg 	<= sbbusyerror_reg and not dmi_pwdata(22);
+					sbreadonaddr_reg 	<= dmi_pwdata(20);
+					sbaccess_reg 		<= dmi_pwdata(19 downto 17);
 					sbautoincrement_reg <= dmi_pwdata(16);
-					sbreadondata_reg <= dmi_pwdata(15);
-					sberror_reg <= sberror_reg and not dmi_pwdata(14 downto 12);
+					sbreadondata_reg 	<= dmi_pwdata(15);
+					sberror_reg 		<= sberror_reg and not dmi_pwdata(14 downto 12);
 				end if;
 				if sbbusy_reg = '1' then
 					if sb_access_illegal_when_busy then
 						sbbusyerror_reg <= '1';
 					end if;
 					if sbus_vld = '1' and sbus_rdy = '1' then
-						sbbusy_reg <= '1';
+						sbbusy_reg <= '0';
 						if sbus_err = '1' then
 							sberror_reg <= SBERROR_BADADDR;
 						end if;
@@ -823,33 +824,33 @@ begin
 	-- L620-640
 	process (clk, rst_n) begin
 		if rst_n = '0' then
-			acmd_prev_postexec_reg <= '0';
-			acmd_prev_transfer_reg <= '0';
-			acmd_prev_write_reg <= '0';
-			acmd_prev_regno_reg <= (others => '0');
-			acmd_prev_unsupported_reg <= '0';
+			acmd_prev_postexec_reg    <= '0';
+			acmd_prev_transfer_reg 	  <= '0';
+			acmd_prev_write_reg 	  <= '0';
+			acmd_prev_regno_reg 	  <= (others => '0');
+			acmd_prev_unsupported_reg <= '1';
 		elsif rising_edge(clk) then
 			if dmactive_reg = '0' then
-				acmd_prev_postexec_reg <= '0';
-				acmd_prev_transfer_reg <= '0';
-				acmd_prev_write_reg <= '0';
-				acmd_prev_regno_reg <= (others => '0');
-				acmd_prev_unsupported_reg <= '0';
+				acmd_prev_postexec_reg 	  <= '0';
+				acmd_prev_transfer_reg 	  <= '0';
+				acmd_prev_write_reg 	  <= '0';
+				acmd_prev_regno_reg 	  <= (others => '0');
+				acmd_prev_unsupported_reg <= '1';
 			elsif start_abstract_cmd = '1' and acmd_new = '1' then
-				acmd_prev_postexec_reg <= acmd_new_postexec;
-				acmd_prev_transfer_reg <= acmd_new_transfer;
-				acmd_prev_write_reg <= acmd_new_write;
-				acmd_prev_regno_reg <= acmd_new_regno;
+				acmd_prev_postexec_reg    <= acmd_new_postexec;
+				acmd_prev_transfer_reg 	  <= acmd_new_transfer;
+				acmd_prev_write_reg 	  <= acmd_new_write;
+				acmd_prev_regno_reg 	  <= acmd_new_regno;
 				acmd_prev_unsupported_reg <= acmd_new_unsupported;
 			end if;
 		end if;
 	end process;
 
 	-- L642-L646
-	acmd_postexec <= acmd_new_postexec when acmd_new = '1' else acmd_prev_postexec_reg;
-	acmd_transfer <= acmd_new_transfer when acmd_new = '1' else acmd_prev_transfer_reg;
-	acmd_write <= acmd_new_write when acmd_new = '1' else acmd_prev_write_reg;
-	acmd_regno <= acmd_new_regno when acmd_new = '1' else acmd_prev_regno_reg;
+	acmd_postexec    <= acmd_new_postexec 	 when acmd_new = '1' else acmd_prev_postexec_reg;
+	acmd_transfer    <= acmd_new_transfer 	 when acmd_new = '1' else acmd_prev_transfer_reg;
+	acmd_write 	     <= acmd_new_write   	 when acmd_new = '1' else acmd_prev_write_reg;
+	acmd_regno    	 <= acmd_new_regno 	 	 when acmd_new = '1' else acmd_prev_regno_reg;
 	acmd_unsupported <= acmd_new_unsupported when acmd_new = '1' else acmd_prev_unsupported_reg;
 
 	-- L648-L730
@@ -996,7 +997,7 @@ begin
 			hart_instr_data_reg <= (others => '0');
 		elsif rising_edge(clk) then
 			hart_instr_data_vld_reg <= hart_instr_data_vld_next;
-			if unsigned(hart_instr_data_vld_next) /= to_unsigned(0, N_HARTS-1) then
+			if unsigned(hart_instr_data_vld_next) /= 0 then
 				hart_instr_data_reg <= hart_instr_data_next;
 			end if;
 		end if;
@@ -1029,19 +1030,20 @@ begin
 		-- 2. Pre-compute SBA mask
 		-- Assumes HAVE_SBA is an integer generic (e.g., 1 or 0)
 		-- If HAVE_SBA is a std_logic, change condition to: if HAVE_SBA = '1' then
-		if HAVE_SBA > 0 then
+		if HAVE_SBA = 1 then
 			v_sba_mask := (others => '1');
 		else
 			v_sba_mask := (others => '0');
 		end if;
 
 		-- 3. Multiplex register data
+		dmi_prdata_reg <= (others => '0');
 		case dmi_regaddr is
 			when ADDR_DATA0 =>        
 				dmi_prdata_reg <= abstract_data0_reg;
 
 			when ADDR_DMCONTROL =>    
-				dmi_prdata_reg <= '0' &                                    -- haltreq is a W-only field
+				dmi_prdata_reg <= '0' &                                -- haltreq is a W-only field
 							  '0' &                                    -- resumereq is a W1 field
 							  status_any(dmcontrol_hartreset_reg) &
 							  '0' &                                    -- ackhavereset is a W1 field
@@ -1056,11 +1058,11 @@ begin
 							  dmactive_reg;
 
 			when ADDR_DMSTATUS =>     
-				dmi_prdata_reg <= "000000000" &                            -- reserved
+				dmi_prdata_reg <= "000000000" &                        -- reserved
 							  '1' &                                    -- impebreak = 1
 							  "00" &                                   -- reserved
-							  status_all_any(dmstatus_havereset_reg) &     -- allhavereset, anyhavereset (2 bits)
-							  status_all_any(dmstatus_resumeack_reg) &     -- allresumeack, anyresumeack (2 bits)
+							  status_all_any(dmstatus_havereset_reg) & -- allhavereset, anyhavereset (2 bits)
+							  status_all_any(dmstatus_resumeack_reg) & -- allresumeack, anyresumeack (2 bits)
 							  v_allnonexistent &                       -- allnonexistent (1 bit)
 							  v_anynonexistent &                       -- anynonexistent (1 bit)
 							  status_all_any(not hart_available) &     -- allunavail, anyunavail (2 bits)
@@ -1073,7 +1075,7 @@ begin
 							  x"2";                                    -- version = 2 (4 bits)
 
 			when ADDR_HARTINFO =>     
-				dmi_prdata_reg <= x"00" &                                  -- reserved
+				dmi_prdata_reg <= x"00" &                              -- reserved
 							  x"0" &                                   -- nscratch = 0
 							  "000" &                                  -- reserved
 							  '0' &                                    -- dataccess = 0
@@ -1096,7 +1098,7 @@ begin
 							  hart_array_mask_reg;
 
 			when ADDR_ABSTRACTCS =>   
-				dmi_prdata_reg <= "000" &                                  -- reserved
+				dmi_prdata_reg <= "000" &                              -- reserved
 							  "00010" &                                -- progbufsize = 2
 							  "00000000000" &                          -- reserved
 							  abstractcs_busy &
@@ -1112,15 +1114,15 @@ begin
 							  abstractauto_autoexecdata_reg;
 
 			when ADDR_SBCS =>          
-				dmi_prdata_reg <= ( "001" &                                -- version = 1
+				dmi_prdata_reg <= ( "001" &                            -- version = 1
 								"000000" &
 								sbbusyerror_reg &
 								sbbusy_reg &
 								sbreadonaddr_reg &
-								sbaccess_reg &                             -- RISC-V Spec defines as 3 bits
+								sbaccess_reg &                         -- RISC-V Spec defines as 3 bits
 								sbautoincrement_reg &
 								sbreadondata_reg &
-								sberror_reg &                              -- 3 bits
+								sberror_reg &                          -- 3 bits
 								"0100000" &                            -- sbasize = 32 (7 bits)
 								"00111"                                -- supported transfers (5 bits)
 							  ) and v_sba_mask;
@@ -1132,16 +1134,16 @@ begin
 				dmi_prdata_reg <= sbaddress_reg and v_sba_mask;
 				
 			when ADDR_CONFSTRPTR0 =>  
-				dmi_prdata_reg <= x"4c296328";
+				dmi_prdata_reg <= x"4C29_6328";
 				
 			when ADDR_CONFSTRPTR1 =>  
-				dmi_prdata_reg <= x"20656b75";
+				dmi_prdata_reg <= x"2065_6B75";
 				
 			when ADDR_CONFSTRPTR2 =>  
-				dmi_prdata_reg <= x"6e657257";
+				dmi_prdata_reg <= x"6E65_7257";
 				
 			when ADDR_CONFSTRPTR3 =>  
-				dmi_prdata_reg <= x"31322720";
+				dmi_prdata_reg <= x"3132_2720";
 				
 			when ADDR_NEXTDM =>       
 				dmi_prdata_reg <= NEXT_DM_ADDR;

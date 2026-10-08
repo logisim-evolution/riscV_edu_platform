@@ -1,25 +1,26 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use ieee.math_real.ceil;
+use ieee.math_real.log2;
 
 entity hazard3_dm_ecp5 is
     generic(
         -- Where there are multiple harts per DM, the least-indexed hart is the
         -- least-significant on each concatenated hart access bus.
-        N_HARTS         : natural                       := 1;
+        N_HARTS         : positive                       := 1;
         -- Where there are multiple DMs, the address of each DM should be a
         -- multiple of 'h200, so that bits[8:2] decode correctly.
-        NEXT_DM_ADDR    : std_logic_vector(31 downto 0) := x"00000000";
+        NEXT_DM_ADDR    : std_logic_vector(31 downto 0)  := x"00000000";
         -- Implement support for system bus access:
-        HAVE_SBA        : natural                       := 1; -- TODO Is this a boolean?
-        DTMCS_IDLE_HINT : std_logic_vector(2 downto 0)  := "100";
-        W_PADDR         : natural                       := 9;
+        HAVE_SBA        : natural                        := 1;
+        DTMCS_IDLE_HINT : std_logic_vector(2 downto 0)   := "100";
+        W_PADDR         : positive                       := 9;
 
-		N_SYNC_STAGES : positive := 2;
         -- Do not modify:
-        ABITS           : natural                       := W_PADDR - 2; -- Do not modify
-        XLEN            : natural                       := 32; -- Do not modify
-        W_HARTSEL       : natural                       := 1 -- N_HARTS > 1 ? $clog2(N_HARTS) : 1 TODO
+        ABITS           : positive                       := W_PADDR - 2; -- Do not modify
+        XLEN            : positive                       := 32; -- Do not modify
+        W_HARTSEL       : positive := integer(ceil(log2(real(maximum(2, N_HARTS))))) -- N_HARTS > 1 ? $clog2(N_HARTS) : 1 TODO
     );
     port(
         -- DM is assumed to be in same clock domain as core; clock crossing
@@ -77,7 +78,7 @@ architecture rtl of hazard3_dm_ecp5 is
     signal dmi_psel    : std_logic;
     signal dmi_penable : std_logic;
     signal dmi_pwrite  : std_logic;
-    signal dmi_paddr : std_logic_vector(8 downto 0);
+    signal dmi_paddr : std_logic_vector(W_PADDR-1 downto 0);
     signal dmi_pwdata  : std_logic_vector(31 downto 0);
     signal dmi_prdata  : std_logic_vector(31 downto 0);
     signal dmi_pready  : std_logic;
@@ -88,9 +89,6 @@ begin
     assert_dmi_reset_n <= (not dmihardreset_req) or rst_n;
 
     reset_sync : entity work.hazard3_reset_sync
-        generic map(
-        	N_STAGES => N_SYNC_STAGES
-        )
         port map(
             clk       => clk,
             rst_n_in  => assert_dmi_reset_n,
