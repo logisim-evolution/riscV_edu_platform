@@ -1,0 +1,8 @@
+font/ami386__8x8.v
+verilog/ram2kdp.v
+verilog/ram4kpd.v
+verilog/graphicsController.v
+verilog/hdmi_720p.v
+verilog/textController.v
+verilog/screens.v
+
