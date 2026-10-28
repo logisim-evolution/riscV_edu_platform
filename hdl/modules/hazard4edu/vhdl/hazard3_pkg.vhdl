@@ -1,7 +1,12 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.math_real.all;
 
 package hazard3_constants is
+
+    -- ========================================================================
+    -- Top Level Constants 
+    -- ========================================================================
 
     constant DATA_WIDTH_C               : integer := 32;
     constant ADDRESS_WIDTH_C            : integer := 32;
@@ -15,6 +20,20 @@ package hazard3_constants is
     constant EXCEPTION_WIDTH_C          : integer := 4;
     constant ALU_SOURCE_WIDTH_C         : integer := 1;
     constant MEMOP_WIDTH_C              : integer := 5;
+    constant MAX_NUMBER_OF_IRQ_C        : integer := 512;
+    constant CSR_ADDRESS_WIDTH_C        : integer := 12;
+    constant MTVEC_WRITE_MASK_C         : std_logic_vector(ADDRESS_WIDTH_C - 1 downto 0) := x"FFFF_FFFD";
+
+    -- JEDEC JEP106-compliant vendor ID, left 0 when not implemented or non-commercial implementation.
+    constant MVENDORID_C                : std_logic_vector(DATA_WIDTH_C - 1 downto 0) := 32x"0";
+    -- Architecture ID of this processor / core (left 0 as it doesn't match the Hazard3 fully anymore)
+    constant MARCHID_C                  : std_logic_vector(DATA_WIDTH_C - 1 downto 0) := 32d"27";
+    -- Pointer to configuration structure blob, or all zeros (WORD aligned)
+    constant MCONFIGPTR_C               : std_logic_vector(DATA_WIDTH_C - 1 downto 0) := 32x"0";
+
+    -- ========================================================================
+    -- Record Type Declarations (Nested Hierarchy)
+    -- ========================================================================
 
     type alu_operations_t is record
         ADD     : std_logic_vector(ALUOP_WIDTH_C - 1 downto 0);
@@ -204,6 +223,248 @@ package hazard3_constants is
         IMM : std_logic_vector(ALU_SOURCE_WIDTH_C - 1 downto 0);
     end record;
 
+    type csr_access_types_t is record
+        W : std_logic_vector(1 downto 0);
+        S : std_logic_vector(1 downto 0);
+        C : std_logic_vector(1 downto 0);
+    end record;
+
+    subtype csr_addr_t is natural range 0 to 16#FFF#;
+
+    -- Machine Information Registers (Read-Only)
+    type addresses_csr_machine_info_t is record
+        MVENDORID   : csr_addr_t;   -- Vendor ID
+        MARCHID     : csr_addr_t;   -- Architecture ID
+        MIMPID      : csr_addr_t;   -- Implementation ID
+        MHARTID     : csr_addr_t;   -- Hardware thread ID
+        MCONFIGPTR  : csr_addr_t;   -- Pointer to configuration data structures
+    end record;
+
+    -- Machine Trap Setup (Read/Write)
+    type addresses_csr_machine_trap_setup_t is record
+        MSTATUS     : csr_addr_t;   -- Machine status register
+        MSTATUSH    : csr_addr_t;   -- As of priv-1.12 this must be present even if tied 0
+        MISA        : csr_addr_t;   -- ISA and extensions
+        MEDELEG     : csr_addr_t;   -- Machine exception delegation register
+        MIDELEG     : csr_addr_t;   -- Machine interrupt delegation register
+        MIE         : csr_addr_t;   -- Machine interrupt-enable register
+        MTVEC       : csr_addr_t;   -- Machine trap-handler base address
+        MCOUNTEREN  : csr_addr_t;   -- Machine counter enable
+    end record;
+
+    -- Machine Trap Handling (Read/Write)
+    type addresses_csr_machine_trap_handling_t is record
+        MSCRATCH    : csr_addr_t;   -- Scratch register for machine trap handlers
+        MEPC        : csr_addr_t;   -- Machine exception program counter
+        MCAUSE      : csr_addr_t;   -- Machine trap cause
+        MTVAL       : csr_addr_t;   -- Machine bad address or instruction
+        MIP         : csr_addr_t;   -- Machine interrupt pending
+    end record;
+
+    -- Machine Memory Protection (Read/Write)
+    type addresses_csr_machine_memory_protection_t is record
+        PMPCFG0     : csr_addr_t;   -- Physical memory protection configuration
+        PMPCFG1     : csr_addr_t;   -- Physical memory protection configuration, RV32 only
+        PMPCFG2     : csr_addr_t;   -- Physical memory protection configuration
+        PMPCFG3     : csr_addr_t;   -- Physical memory protection configuration, RV32 only
+        PMPADDR0    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR1    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR2    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR3    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR4    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR5    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR6    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR7    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR8    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR9    : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR10   : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR11   : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR12   : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR13   : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR14   : csr_addr_t;   -- Physical memory protection address register
+        PMPADDR15   : csr_addr_t;   -- Physical memory protection address register
+        MSECCFG     : csr_addr_t;
+        MSECCFGH    : csr_addr_t;
+    end record;
+
+    -- Performance Counters (Read/Write)
+    type addresses_csr_performance_counters_t is record
+        MCYCLE          : csr_addr_t;   -- Raw cycles since start of day
+        MINSTRET        : csr_addr_t;   -- Instruction retire count since start of day
+        MHPMCOUNTER3    : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER4    : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER5    : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER6    : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER7    : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER8    : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER9    : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER10   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER11   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER12   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER13   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER14   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER15   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER16   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER17   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER18   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER19   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER20   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER21   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER22   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER23   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER24   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER25   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER26   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER27   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER28   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER29   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER30   : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMCOUNTER31   : csr_addr_t;   -- WARL (we tie to 0)
+        MCYCLEH         : csr_addr_t;   -- High halves of each counter
+        MINSTRETH       : csr_addr_t;
+        MHPMCOUNTER3H   : csr_addr_t;
+        MHPMCOUNTER4H   : csr_addr_t;
+        MHPMCOUNTER5H   : csr_addr_t;
+        MHPMCOUNTER6H   : csr_addr_t;
+        MHPMCOUNTER7H   : csr_addr_t;
+        MHPMCOUNTER8H   : csr_addr_t;
+        MHPMCOUNTER9H   : csr_addr_t;
+        MHPMCOUNTER10H  : csr_addr_t;
+        MHPMCOUNTER11H  : csr_addr_t;
+        MHPMCOUNTER12H  : csr_addr_t;
+        MHPMCOUNTER13H  : csr_addr_t;
+        MHPMCOUNTER14H  : csr_addr_t;
+        MHPMCOUNTER15H  : csr_addr_t;
+        MHPMCOUNTER16H  : csr_addr_t;
+        MHPMCOUNTER17H  : csr_addr_t;
+        MHPMCOUNTER18H  : csr_addr_t;
+        MHPMCOUNTER19H  : csr_addr_t;
+        MHPMCOUNTER20H  : csr_addr_t;
+        MHPMCOUNTER21H  : csr_addr_t;
+        MHPMCOUNTER22H  : csr_addr_t;
+        MHPMCOUNTER23H  : csr_addr_t;
+        MHPMCOUNTER24H  : csr_addr_t;
+        MHPMCOUNTER25H  : csr_addr_t;
+        MHPMCOUNTER26H  : csr_addr_t;
+        MHPMCOUNTER27H  : csr_addr_t;
+        MHPMCOUNTER28H  : csr_addr_t;
+        MHPMCOUNTER29H  : csr_addr_t;
+        MHPMCOUNTER30H  : csr_addr_t;
+        MHPMCOUNTER31H  : csr_addr_t;
+        MCOUNTINHIBIT   : csr_addr_t;   -- Count inhibit register for mcycle/minstret
+        MHPMEVENT3      : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT4      : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT5      : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT6      : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT7      : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT8      : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT9      : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT10     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT11     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT12     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT13     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT14     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT15     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT16     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT17     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT18     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT19     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT20     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT21     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT22     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT23     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT24     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT25     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT26     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT27     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT28     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT29     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT30     : csr_addr_t;   -- WARL (we tie to 0)
+        MHPMEVENT31     : csr_addr_t;   -- WARL (we tie to 0)
+    end record;
+
+    -- Other Standard M-Mode CSRs
+    type addresses_csr_other_standard_m_mode_t is record
+        MENVCFG     : csr_addr_t;
+        MENVCFGH    : csr_addr_t;
+    end record;
+
+    -- Custom M-Mode CSRs
+    type addresses_csr_custom_m_mode_t is record
+        PMPCFGM0    : csr_addr_t;   -- Make PMP regions M-mode without locking
+        MEIEA       : csr_addr_t;   -- External interrupt pending array
+        MEIPA       : csr_addr_t;   -- External interrupt enable array
+        MEIFA       : csr_addr_t;   -- External interrupt force array
+        MEIPRA      : csr_addr_t;   -- External interrupt priority array
+        MEINEXT     : csr_addr_t;   -- Next external interrupt
+        MEICONTEXT  : csr_addr_t;   -- External interrupt context register
+        MSLEEP      : csr_addr_t;   -- M-mode sleep control register
+        H3MISA      : csr_addr_t;   -- Hazard3 M-mode ISA identification register
+    end record;
+
+    -- U-Mode CSRs
+    type addresses_csr_u_mode_t is record
+        CYCLE       : csr_addr_t;
+        TIME        : csr_addr_t;
+        INSTRET     : csr_addr_t;
+        CYCLEH      : csr_addr_t;
+        TIMEH       : csr_addr_t;
+        INSTRETH    : csr_addr_t;
+        SLEEP       : csr_addr_t;   -- U-mode subset of M-mode sleep control
+    end record;
+
+    -- Trigger Module CSRs
+    type addresses_csr_trigger_module_t is record
+        TSELECT     : csr_addr_t;
+        TDATA1      : csr_addr_t;
+        TDATA2      : csr_addr_t;
+        TDATA3      : csr_addr_t;
+        TINFO       : csr_addr_t;
+        TCONTROL    : csr_addr_t;
+        MCONTEXT    : csr_addr_t;
+    end record;
+
+    -- D-Mode CSRs
+    type addresses_csr_d_mode_t is record
+        DCSR        : csr_addr_t;
+        DPC         : csr_addr_t;
+        DMDATA0     : csr_addr_t;   -- Custom read/write
+    end record;
+
+    -- Master CSR Addresses Record Type
+    type csr_addresses_t is record
+        MACHINE_INFO              : addresses_csr_machine_info_t;               -- Machine Information Registers (Read-Only)
+        MACHINE_TRAP_SETUP        : addresses_csr_machine_trap_setup_t;         -- Machine Trap Setup (Read/Write)
+        MACHINE_TRAP_HANDLING     : addresses_csr_machine_trap_handling_t;      -- Machine Trap Handling (Read/Write)
+        MACHINE_MEMORY_PROTECTION : addresses_csr_machine_memory_protection_t;  -- Machine Memory Protection (Read/Write)
+        PERFORMANCE_COUNTERS      : addresses_csr_performance_counters_t;       -- Performance Counters (Read/Write)
+        OTHER_STANDARD_M_MODE     : addresses_csr_other_standard_m_mode_t;      -- Other Standard M-Mode CSRs
+        CUSTOM_M_MODE             : addresses_csr_custom_m_mode_t;              -- Custom M-Mode CSRs
+        U_MODE                    : addresses_csr_u_mode_t;                     -- U-Mode CSRs
+        TRIGGER_MODULE            : addresses_csr_trigger_module_t;             -- Trigger Module CSRs
+        D_MODE                    : addresses_csr_d_mode_t;                     -- D-Mode CSRs
+    end record;
+
+    type mimpid_rtl_t is record
+        PRERELEASE : std_logic_vector(0 downto 0);
+        MAJOR      : std_logic_vector(3 downto 0);
+        MINOR      : std_logic_vector(7 downto 0);
+        PATCH      : std_logic_vector(7 downto 0);
+    end record;
+
+    -- ========================================================================
+    -- Constant Initialization
+    -- ========================================================================
+
+    -- MIMPID records the release version. To be updated
+    -- manually with every release!
+    constant RTL_MIMPID : mimpid_rtl_t  := (
+        PRERELEASE => 1d"0",
+        MAJOR      => 4d"1",
+        MINOR      => 8d"1",
+        PATCH      => 8d"1"
+    );
+
     constant ALUOP_C : alu_operations_t := (
         ADD     => 6x"00",
         SUB     => 6x"01",
@@ -311,7 +572,7 @@ package hazard3_constants is
         LHU        => "-----------------101-----0000011",
         SB         => "-----------------000-----0100011",
         SH         => "-----------------001-----0100011",
-        LR_W       => "00010------------010-----0101111",
+        LR_W       => "00010--00000-----010-----0101111",
         SC_W       => "00011------------010-----0101111",
         AMO        => "-----------------010-----0101111",
         CSRRW      => "-----------------001-----1110011",
@@ -320,10 +581,10 @@ package hazard3_constants is
         CSRRWI     => "-----------------101-----1110011",
         CSRRSI     => "-----------------110-----1110011",
         CSRRCI     => "-----------------111-----1110011",
-        FENCE      => "-----------------000-----0001111",
-        ECALL      => x"00000073",
-        MRET       => x"30200073",
-        WFI        => x"10500073",
+        FENCE      => "------------00000000000000001111",
+        ECALL      => "00000000000000000000000001110011",
+        MRET       => "00110000001000000000000001110011",
+        WFI        => "00010000010100000000000001110011",
         FENCE_I    => "00000000000000000001000000001111",
         EBREAK     => "00000000000100000000000001110011",
         MULH       => "0000001----------001-----0110011",
@@ -392,12 +653,209 @@ package hazard3_constants is
         IMM => "1"
     );
 
-    function to_std_logic(value : boolean) return std_logic;    
-    
+    constant CSR_WTYPE : csr_access_types_t := (
+        W => "00",
+        S => "01",
+        C => "10"
+    );
+
+    constant CSR_ADDRESSES : csr_addresses_t := (
+        MACHINE_INFO => (
+            MVENDORID       => 16#F11#,
+            MARCHID         => 16#F12#,
+            MIMPID          => 16#F13#,
+            MHARTID         => 16#F14#,
+            MCONFIGPTR      => 16#F15#
+        ),
+        MACHINE_TRAP_SETUP => (
+            MSTATUS         => 16#300#,
+            MSTATUSH        => 16#310#,
+            MISA            => 16#301#,
+            MEDELEG         => 16#302#,
+            MIDELEG         => 16#303#,
+            MIE             => 16#304#,
+            MTVEC           => 16#305#,
+            MCOUNTEREN      => 16#306#
+        ),
+        MACHINE_TRAP_HANDLING => (
+            MSCRATCH        => 16#340#,
+            MEPC            => 16#341#,
+            MCAUSE          => 16#342#,
+            MTVAL           => 16#343#,
+            MIP             => 16#344#
+        ),
+        MACHINE_MEMORY_PROTECTION => (
+            PMPCFG0         => 16#3A0#,
+            PMPCFG1         => 16#3A1#,
+            PMPCFG2         => 16#3A2#,
+            PMPCFG3         => 16#3A3#,
+            PMPADDR0        => 16#3B0#,
+            PMPADDR1        => 16#3B1#,
+            PMPADDR2        => 16#3B2#,
+            PMPADDR3        => 16#3B3#,
+            PMPADDR4        => 16#3B4#,
+            PMPADDR5        => 16#3B5#,
+            PMPADDR6        => 16#3B6#,
+            PMPADDR7        => 16#3B7#,
+            PMPADDR8        => 16#3B8#,
+            PMPADDR9        => 16#3B9#,
+            PMPADDR10       => 16#3BA#,
+            PMPADDR11       => 16#3BB#,
+            PMPADDR12       => 16#3BC#,
+            PMPADDR13       => 16#3BD#,
+            PMPADDR14       => 16#3BE#,
+            PMPADDR15       => 16#3BF#,
+            MSECCFG         => 16#747#,
+            MSECCFGH        => 16#757#
+        ),
+        PERFORMANCE_COUNTERS => (
+            MCYCLE          => 16#B00#,
+            MINSTRET        => 16#B02#,
+            MHPMCOUNTER3    => 16#B03#,
+            MHPMCOUNTER4    => 16#B04#,
+            MHPMCOUNTER5    => 16#B05#,
+            MHPMCOUNTER6    => 16#B06#,
+            MHPMCOUNTER7    => 16#B07#,
+            MHPMCOUNTER8    => 16#B08#,
+            MHPMCOUNTER9    => 16#B09#,
+            MHPMCOUNTER10   => 16#B0A#,
+            MHPMCOUNTER11   => 16#B0B#,
+            MHPMCOUNTER12   => 16#B0C#,
+            MHPMCOUNTER13   => 16#B0D#,
+            MHPMCOUNTER14   => 16#B0E#,
+            MHPMCOUNTER15   => 16#B0F#,
+            MHPMCOUNTER16   => 16#B10#,
+            MHPMCOUNTER17   => 16#B11#,
+            MHPMCOUNTER18   => 16#B12#,
+            MHPMCOUNTER19   => 16#B13#,
+            MHPMCOUNTER20   => 16#B14#,
+            MHPMCOUNTER21   => 16#B15#,
+            MHPMCOUNTER22   => 16#B16#,
+            MHPMCOUNTER23   => 16#B17#,
+            MHPMCOUNTER24   => 16#B18#,
+            MHPMCOUNTER25   => 16#B19#,
+            MHPMCOUNTER26   => 16#B1A#,
+            MHPMCOUNTER27   => 16#B1B#,
+            MHPMCOUNTER28   => 16#B1C#,
+            MHPMCOUNTER29   => 16#B1D#,
+            MHPMCOUNTER30   => 16#B1E#,
+            MHPMCOUNTER31   => 16#B1F#,
+            MCYCLEH         => 16#B80#,
+            MINSTRETH       => 16#B82#,
+            MHPMCOUNTER3H   => 16#B83#,
+            MHPMCOUNTER4H   => 16#B84#,
+            MHPMCOUNTER5H   => 16#B85#,
+            MHPMCOUNTER6H   => 16#B86#,
+            MHPMCOUNTER7H   => 16#B87#,
+            MHPMCOUNTER8H   => 16#B88#,
+            MHPMCOUNTER9H   => 16#B89#,
+            MHPMCOUNTER10H  => 16#B8A#,
+            MHPMCOUNTER11H  => 16#B8B#,
+            MHPMCOUNTER12H  => 16#B8C#,
+            MHPMCOUNTER13H  => 16#B8D#,
+            MHPMCOUNTER14H  => 16#B8E#,
+            MHPMCOUNTER15H  => 16#B8F#,
+            MHPMCOUNTER16H  => 16#B90#,
+            MHPMCOUNTER17H  => 16#B91#,
+            MHPMCOUNTER18H  => 16#B92#,
+            MHPMCOUNTER19H  => 16#B93#,
+            MHPMCOUNTER20H  => 16#B94#,
+            MHPMCOUNTER21H  => 16#B95#,
+            MHPMCOUNTER22H  => 16#B96#,
+            MHPMCOUNTER23H  => 16#B97#,
+            MHPMCOUNTER24H  => 16#B98#,
+            MHPMCOUNTER25H  => 16#B99#,
+            MHPMCOUNTER26H  => 16#B9A#,
+            MHPMCOUNTER27H  => 16#B9B#,
+            MHPMCOUNTER28H  => 16#B9C#,
+            MHPMCOUNTER29H  => 16#B9D#,
+            MHPMCOUNTER30H  => 16#B9E#,
+            MHPMCOUNTER31H  => 16#B9F#,
+            MCOUNTINHIBIT   => 16#320#,
+            MHPMEVENT3      => 16#323#,
+            MHPMEVENT4      => 16#324#,
+            MHPMEVENT5      => 16#325#,
+            MHPMEVENT6      => 16#326#,
+            MHPMEVENT7      => 16#327#,
+            MHPMEVENT8      => 16#328#,
+            MHPMEVENT9      => 16#329#,
+            MHPMEVENT10     => 16#32A#,
+            MHPMEVENT11     => 16#32B#,
+            MHPMEVENT12     => 16#32C#,
+            MHPMEVENT13     => 16#32D#,
+            MHPMEVENT14     => 16#32E#,
+            MHPMEVENT15     => 16#32F#,
+            MHPMEVENT16     => 16#330#,
+            MHPMEVENT17     => 16#331#,
+            MHPMEVENT18     => 16#332#,
+            MHPMEVENT19     => 16#333#,
+            MHPMEVENT20     => 16#334#,
+            MHPMEVENT21     => 16#335#,
+            MHPMEVENT22     => 16#336#,
+            MHPMEVENT23     => 16#337#,
+            MHPMEVENT24     => 16#338#,
+            MHPMEVENT25     => 16#339#,
+            MHPMEVENT26     => 16#33A#,
+            MHPMEVENT27     => 16#33B#,
+            MHPMEVENT28     => 16#33C#,
+            MHPMEVENT29     => 16#33D#,
+            MHPMEVENT30     => 16#33E#,
+            MHPMEVENT31     => 16#33F#
+        ),
+        OTHER_STANDARD_M_MODE => (
+            MENVCFG         => 16#30a#,
+            MENVCFGH        => 16#31a#
+        ),
+        CUSTOM_M_MODE => (
+            PMPCFGM0        => 16#BD0#,
+            MEIEA           => 16#BE0#,
+            MEIPA           => 16#BE1#,
+            MEIFA           => 16#BE2#,
+            MEIPRA          => 16#BE3#,
+            MEINEXT         => 16#BE4#,
+            MEICONTEXT      => 16#BE5#,
+            MSLEEP          => 16#BF0#,
+            H3MISA          => 16#BF1#
+        ),
+        U_MODE => (
+            CYCLE           => 16#C00#,
+            TIME            => 16#C01#,
+            INSTRET         => 16#C02#,
+            CYCLEH          => 16#C80#,
+            TIMEH           => 16#C81#,
+            INSTRETH        => 16#C82#,
+            SLEEP           => 16#8F0#
+        ),
+        TRIGGER_MODULE => (
+            TSELECT         => 16#7A0#,
+            TDATA1          => 16#7A1#,
+            TDATA2          => 16#7A2#,
+            TDATA3          => 16#7A3#,
+            TINFO           => 16#7A4#,
+            TCONTROL        => 16#7A5#,
+            MCONTEXT        => 16#7A8#
+        ),
+        D_MODE => (
+            DCSR            => 16#7B0#,
+            DPC             => 16#7B1#,
+            DMDATA0         => 16#BFF#
+        )
+    );
+
+    -- ========================================================================
+    -- Custom Functions
+    -- ========================================================================
+
+    function to_std_logic(value : boolean) return std_logic;
+
+    function clog2(value : integer) return natural;
+
+    type std_logic_array_t is array (natural range <>) of std_logic_vector;
 
 end package hazard3_constants;
 
 package body hazard3_constants is
+
     function to_std_logic(value : boolean)
         return std_logic is
     begin
@@ -407,6 +865,12 @@ package body hazard3_constants is
             return '0';
         end if;
     end function to_std_logic;
-    
+
+    function clog2(value : integer)
+        return natural is
+    begin
+        return natural(ceil(log2(real(value))));
+    end function clog2;
+
 end package body hazard3_constants;
 

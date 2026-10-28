@@ -30,12 +30,12 @@ use ieee.std_logic_1164.all;
 
 entity hazard3_reset_sync is
 	generic (
-		N_STAGES : positive := 2
+		N_STAGES : integer range 0 to integer'high := 2
 	);
 	port (
 		clk       : in std_logic;
-		rst_n_in  : in std_logic;
-		rst_n_out : out std_logic
+		rst_in  : in std_logic;
+		rst_out : out std_logic
 	);
 end entity hazard3_reset_sync;
 
@@ -45,25 +45,15 @@ architecture rtl of hazard3_reset_sync is
 	attribute keep of delay : signal is true;
 begin
 
-	assert N_STAGES >= 2 report "N_STAGES must be >= 2" severity failure;
-
-	-- Original Verilog Code:
-	--	always @ (posedge clk or negedge rst_n_in)
-	-- 		if (!rst_n_in)
-	-- 			delay <= {N_STAGES{1'b0}};
-	--  	else
-	--  		delay <= {delay[N_STAGES-2:0], 1'b1};
-	--    
-	--	assign rst_n_out = delay[N_STAGES-1];
-	RST_SYNC : process (clk, rst_n_in)
+	RST_SYNC : process (clk, rst_in)
 	begin
-		if rst_n_in = '0' then
-			delay <= (others => '0');
+		if ?? rst_in then
+			delay <= (others => '1');
 		elsif rising_edge(clk) then
-			delay <= delay(N_STAGES - 2 downto 0) & '1';
+			delay <= delay(N_STAGES - 2 downto 0) & '0';
 		end if;
 	end process RST_SYNC;
 
-	rst_n_out <= delay(N_STAGES - 1);
+	rst_out <= delay(N_STAGES - 1);
 
 end architecture rtl;

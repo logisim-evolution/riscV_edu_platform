@@ -57,15 +57,15 @@ entity hazard3_apb_async_bridge is
 	generic (
 		W_ADDR        : positive := 8;
 		W_DATA        : positive := 32;
-		N_SYNC_STAGES : positive := 2
+		N_SYNC_STAGES : integer range 2 to integer'high := 2
 	);
 	port (
 		-- Resets assumed to be synchronised externally
 		clk_src   : in std_logic;
-		rst_n_src : in std_logic;
+		rst_src   : in std_logic;
 
 		clk_dst   : in std_logic;
-		rst_n_dst : in std_logic;
+		rst_dst   : in std_logic;
 
 		-- APB port from Transport Module
 		src_psel    : in std_logic;
@@ -107,9 +107,9 @@ architecture rtl of hazard3_apb_async_bridge is
 	--
 	-- A NRZI toggle handshake might be more appropriate, but can cause spurious
 	-- bus accesses when only one side of the link is reset.
-	signal src_req_reg : std_logic := '0';
+	signal src_req_reg : std_logic;
 	signal dst_req     : std_logic;
-	signal dst_ack_reg : std_logic := '0';
+	signal dst_ack_reg : std_logic;
 	signal src_ack     : std_logic;
 
 	-- Note the launch registers are not resettable. We maintain setup/hold on
@@ -123,11 +123,11 @@ architecture rtl of hazard3_apb_async_bridge is
 	signal dst_prdata_pslverr_reg      : std_logic_vector(W_DATA downto 0); -- launch
 	signal src_prdata_pslverr_reg      : std_logic_vector(W_DATA downto 0); -- capture
 
-	signal src_waiting_for_downstream_eg : std_logic := '0';
-	signal src_pready_reg                : std_logic := '1';
+	signal src_waiting_for_downstream_eg : std_logic;
+	signal src_pready_reg                : std_logic;
 
-	signal dst_psel_reg    : std_logic := '0';
-	signal dst_penable_reg : std_logic := '0';
+	signal dst_psel_reg    : std_logic;
+	signal dst_penable_reg : std_logic;
 	signal dst_bus_finish  : std_logic;
 
 
@@ -146,7 +146,7 @@ begin
 		port map
 		(
 			clk   => clk_dst,
-			rst_n => rst_n_dst,
+			rst   => rst_dst,
 			i     => src_req_reg,
 			o     => dst_req
 		);
@@ -158,22 +158,22 @@ begin
 		port map
 		(
 			clk   => clk_src,
-			rst_n => rst_n_src,
+			rst   => rst_src,
 			i     => dst_ack_reg,
 			o     => src_ack
 		);
 
 	-- 	------------------------------------------------------------------------
 	-- src state machine
-	process (clk_src, rst_n_src)
+	process (clk_src)
 	begin
-		if rst_n_src = '0' then
-			src_req_reg                   <= '0';
-			src_waiting_for_downstream_eg <= '0';
-			src_prdata_pslverr_reg        <= (others => '0');
-			src_pready_reg                <= '1';
-		elsif rising_edge(clk_src) then
-			if src_waiting_for_downstream_eg = '1' then
+		if rising_edge(clk_src) then
+			if ?? rst_src then
+				src_req_reg                   <= '0';
+				src_waiting_for_downstream_eg <= '0';
+				src_prdata_pslverr_reg        <= (others => '0');
+				src_pready_reg                <= '1';
+			elsif ?? src_waiting_for_downstream_eg then
 				if src_req_reg = '1' and src_ack = '1' then
 					-- Request was acknowledged, so deassert.
 					src_req_reg <= '0';
@@ -217,12 +217,12 @@ begin
 
 	dst_bus_finish <= dst_penable_reg and dst_pready;
 
-	process (clk_dst, rst_n_dst)
+	process (clk_dst)
 	begin
-		if rst_n_dst = '0' then
-			dst_ack_reg <= '0';
-		elsif rising_edge(clk_dst) then
-			if dst_req = '1' then
+		if rising_edge(clk_dst) then
+			if ?? rst_dst then
+				dst_ack_reg <= '0';
+			elsif ?? dst_req then
 				dst_ack_reg <= '1';
 			elsif dst_req = '0' and dst_ack_reg = '1' and dst_psel_reg = '0' then
 				dst_ack_reg <= '0';
@@ -230,21 +230,21 @@ begin
 		end if;
 	end process;
 
-	process (clk_dst, rst_n_dst)
+	process (clk_dst)
 	begin
-		if rst_n_dst = '0' then
-			dst_psel_reg                <= '0';
-			dst_penable_reg             <= '0';
-			dst_paddr_pwdata_pwrite_reg <= (others => '0');
-		elsif rising_edge(clk_dst) then
-			if dst_req = '1' and dst_ack_reg = '0' then
+		if rising_edge(clk_dst) then
+			if ?? rst_dst then
+				dst_psel_reg                <= '0';
+				dst_penable_reg             <= '0';
+				dst_paddr_pwdata_pwrite_reg <= (others => '0');
+			elsif dst_req = '1' and dst_ack_reg = '0' then
 				dst_psel_reg <= '1';
 				-- Note this assignment is cross-domain. The src register has been
 				-- stable for the duration of the req sync delay.
 				dst_paddr_pwdata_pwrite_reg <= src_paddr_pwdata_pwrite_reg;
 			elsif dst_psel_reg = '1' and dst_penable_reg = '0' then
 				dst_penable_reg <= '1';
-			elsif dst_bus_finish = '1' then
+			elsif ?? dst_bus_finish then
 				dst_psel_reg    <= '0';
 				dst_penable_reg <= '0';
 			end if;
@@ -255,7 +255,7 @@ begin
 	process (clk_dst)
 	begin
 		if rising_edge(clk_dst) then
-			if dst_bus_finish = '1' then
+			if ?? dst_bus_finish then
 				dst_prdata_pslverr_reg <= dst_prdata & dst_pslverr;
 			end if;
 		end if;

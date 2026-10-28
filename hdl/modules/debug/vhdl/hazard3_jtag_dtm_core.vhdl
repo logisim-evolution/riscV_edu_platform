@@ -52,23 +52,22 @@ use ieee.numeric_std.all;
 
 entity hazard3_jtag_dtm_core is
 	generic (
-		DTMCS_IDLE_HINT : std_logic_vector(2 downto 0) := "100";
-		W_ADDR          : natural                      := 8;
-		W_DR_SHIFT      : natural                      := W_ADDR + 32 + 2
+		DTMCS_IDLE_HINT : std_logic_vector(2 downto 0) := 3d"4";
+		W_ADDR          : natural                      := 8
 	);
 	port (
 		tck    : in std_logic;
 		trst_n : in std_logic;
 
-		clk_dmi   : in std_logic;
-		rst_n_dmi : in std_logic;
+		clk_dmi : in std_logic;
+		rst_dmi : in std_logic;
 
 		-- DR capture/update (read/write) signals
 		dr_wen            : in std_logic;
 		dr_ren            : in std_logic;
 		dr_sel_dmi_ndtmcs : in std_logic;
-		dr_wdata          : in std_logic_vector(W_DR_SHIFT - 1 downto 0);
-		dr_rdata          : out std_logic_vector(W_DR_SHIFT - 1 downto 0);
+		dr_wdata          : in std_logic_vector(W_ADDR + 32 + 1 downto 0);
+		dr_rdata          : out std_logic_vector(W_ADDR + 32 + 1 downto 0);
 
 		-- This is synchronous to TCK and asserted for one TCK cycle only
 		dmihardreset_req : out std_logic;
@@ -91,20 +90,20 @@ architecture rtl of hazard3_jtag_dtm_core is
 	signal read_dmi    : std_logic;
 
 	-- DMI bus adapter
-	signal dmi_cmderr_reg : std_logic_vector(1 downto 0) := "00";
-	signal dmi_busy_reg   : std_logic                    := '0';
+	signal dmi_cmderr_reg : std_logic_vector(1 downto 0);
+	signal dmi_busy_reg   : std_logic;
 
 	-- DTM-domain bus, connected to a matching DM-domain bus via an APB crossing:
 	signal dtm_psel    : std_logic;
 	signal dtm_penable : std_logic;
 	signal dtm_pwrite  : std_logic;
-	signal dtm_paddr   : std_logic_vector(W_ADDR - 1 downto 0);
-	signal dtm_pwdata  : std_logic_vector(31 downto 0);
-	signal dtm_prdata  : std_logic_vector(31 downto 0);
+	signal dtm_paddr   : std_logic_vector(dmi_paddr'range);
+	signal dtm_pwdata  : std_logic_vector(dmi_pwdata'range);
+	signal dtm_prdata  : std_logic_vector(dmi_prdata'range);
 	signal dtm_pready  : std_logic;
 	signal dtm_pslverr : std_logic;
-	signal dtmcs_rdata : std_logic_vector(W_DR_SHIFT - 1 downto 0);
-	signal dmi_rdata   : std_logic_vector(W_DR_SHIFT - 1 downto 0);
+	signal dtmcs_rdata : std_logic_vector(dr_rdata'range);
+	signal dmi_rdata   : std_logic_vector(dr_rdata'range);
 	signal dmi_status  : std_logic_vector(1 downto 0);
 
 	signal dmihardreset_req_reg : std_logic;
@@ -129,32 +128,35 @@ begin
 	-- shifter without any sample/hold registers in between.
 
 	-- psel is only pulsed for one cycle, penable is not asserted.
-	dtm_psel <= '1' when write_dmi = '1' and (dr_wdata(1 downto 0) = "01" or dr_wdata(1 downto 0) = "10") and dmi_busy_reg = '0' and dmi_cmderr_reg = "00" and dtm_pready = '1' else
-		'0';
+	dtm_psel <= '1' when write_dmi = '1' and (
+						dr_wdata(1 downto 0) = "01" or dr_wdata(1 downto 0) = "10"
+					) and dmi_busy_reg = '0' and dmi_cmderr_reg = "00" and
+					dtm_pready = '1'
+				else '0';
+
 	dtm_penable <= '0';
 	dtm_paddr   <= dr_wdata(34 + W_ADDR - 1 downto 34);
 	dtm_pwrite  <= dr_wdata(1);
 	dtm_pwdata  <= dr_wdata(33 downto 2);
 
-	process (tck, trst_n)
-	begin
-		if trst_n = '0' then
-			dmi_busy_reg   <= '0';
-			dmi_cmderr_reg <= "00";
-		elsif rising_edge(tck) then
-			if read_dmi = '1' then
+	process (tck) begin
+		if rising_edge(tck) then
+			if ?? (not trst_n) then
+				dmi_busy_reg   <= '0';
+				dmi_cmderr_reg <= "00";
+			elsif ?? read_dmi then
 				-- Reading while busy sets the busy sticky error. Note the capture
 				-- into shift register should also reflect this update on-the-fly
 				if dmi_busy_reg = '1' and dmi_cmderr_reg = "00" then
 					dmi_cmderr_reg <= "11";
 				end if;
-			elsif write_dtmcs = '1' then
+			elsif ?? write_dtmcs then
 				-- Writing dtmcs.dmireset = 1 clears a sticky error
-				if dr_wdata(16) = '1' then
+				if ?? dr_wdata(16) then
 					dmi_cmderr_reg <= "00";
 				end if;
-			elsif write_dmi = '1' then
-				if dtm_psel = '1' then
+			elsif ?? write_dmi then
+				if ?? dtm_psel then
 					dmi_busy_reg <= '1';
 				elsif dr_wdata(1 downto 0) /= "00" then
 					-- DMI ignored operation, so set sticky busy
@@ -162,7 +164,7 @@ begin
 						dmi_cmderr_reg <= "11";
 					end if;
 				end if;
-			elsif dmi_busy_reg = '1' and dtm_pready = '1' then
+			elsif ?? (dmi_busy_reg and dtm_pready) then
 				dmi_busy_reg <= '0';
 				if dmi_cmderr_reg = "00" and dtm_pslverr = '1' then
 					dmi_cmderr_reg <= "10";
@@ -182,9 +184,9 @@ begin
 		port map
 		(
 			clk_src     => tck,
-			rst_n_src   => trst_n,
+			rst_src     => not trst_n,
 			clk_dst     => clk_dmi,
-			rst_n_dst   => rst_n_dmi,
+			rst_dst     => rst_dmi,
 			src_psel    => dtm_psel,
 			src_penable => dtm_penable,
 			src_pwrite  => dtm_pwrite,
@@ -207,30 +209,24 @@ begin
 	-- DR read/write
 	
 	dtmcs_rdata <= (W_ADDR-1 downto 0 => '0') &
-                   "0000000000000000000" &                             -- 19'h0
+                   19d"0" &                             -- 19'h0
                    DTMCS_IDLE_HINT &
                    dmi_cmderr_reg &
                    std_logic_vector(to_unsigned(W_ADDR, 6)) &          -- W_ADDR[5:0]
-                   "0001";                                             -- 4'd1
+                   4d"1";                                             -- 4'd1
 
     dmi_status <= "11" when (dmi_busy_reg = '1' and dmi_cmderr_reg = "00") else dmi_cmderr_reg;
 
-    dmi_rdata <= (W_ADDR-1 downto 0 => '0') &
-                 dtm_prdata &
-                 dmi_status;
+    dmi_rdata <= (W_ADDR-1 downto 0 => '0') & dtm_prdata & dmi_status;
 
-    dr_rdata <= dmi_rdata when (dr_sel_dmi_ndtmcs = '1') else dtmcs_rdata;
+    dr_rdata <= dmi_rdata when ?? dr_sel_dmi_ndtmcs else dtmcs_rdata;
 
-    update_dmihardreset_proc : process(tck, trst_n)
-    begin
-        if trst_n = '0' then
-            dmihardreset_req_reg <= '0';
-        elsif rising_edge(tck) then
-            -- Evaluate the boolean condition and assign
-            if (write_dtmcs = '1' and dr_wdata(17) = '1') then
-                dmihardreset_req_reg <= '1';
-            else
-                dmihardreset_req_reg <= '0';
+    update_dmihardreset_proc : process (tck) begin
+		if rising_edge(tck) then
+			if ?? (not trst_n) then
+            	dmihardreset_req_reg <= '0';
+			else
+                dmihardreset_req_reg <= write_dtmcs and dr_wdata(17);
             end if;
         end if;
     end process update_dmihardreset_proc;

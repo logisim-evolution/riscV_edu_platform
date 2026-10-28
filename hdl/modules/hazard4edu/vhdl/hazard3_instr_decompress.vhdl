@@ -10,9 +10,7 @@ entity hazard3_instr_decompress is
         EXTENSION_M : boolean := TRUE
     );
     port(
-        clk                        : in  std_logic;
-        rst_n                      : in  std_logic;
-        instr_in                   : in  std_logic_vector(DATA_WIDTH_C - 1 downto 0);
+        instr_in                  : in  std_logic_vector(DATA_WIDTH_C - 1 downto 0);
         instr_is_32bit             : out std_logic;
         instr_out                  : out std_logic_vector(DATA_WIDTH_C - 1 downto 0);
         instr_out_is_uop           : out std_logic;

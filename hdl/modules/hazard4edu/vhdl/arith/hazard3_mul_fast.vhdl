@@ -13,7 +13,7 @@ entity hazard3_mul_fast is
     );
     port(
         clk        : in  std_logic;
-        rst_n      : in  std_logic;
+        rst        : in  std_logic;
         op         : in  std_logic_vector(MULOP_WIDTH_C - 1 downto 0);
         op_vld     : in  std_logic;
         op_a       : in  std_logic_vector(DATA_WIDTH_C - 1 downto 0);
@@ -45,12 +45,14 @@ begin
         severity FAILURE;
 
     -- Latency of this module is 1:
-    REG_VALID : process(clk, rst_n) is
+    REG_VALID : process(clk) is
     begin
-        if rst_n = '0' then
-            result_valid_reg <= '0';
-        elsif rising_edge(clk) then
-            result_valid_reg <= op_vld;
+        if rising_edge(clk) then
+            if ?? rst then
+                result_valid_reg <= '0';
+            else
+                result_valid_reg <= op_vld;
+            end if;
         end if;
     end process REG_VALID;
     result_vld <= result_valid_reg;

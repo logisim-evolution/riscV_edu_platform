@@ -4,6 +4,8 @@ use ieee.numeric_std.all;
 use ieee.math_real.ceil;
 use ieee.math_real.log2;
 
+use work.hazard3_constants.all;
+
 entity hazard3_onehot_priority_dynamic is
     generic(
         REQUEST_WIDTH_C         : positive := 8;
@@ -11,18 +13,20 @@ entity hazard3_onehot_priority_dynamic is
         -- If 1, numerically highest level has greatest priority. Otherwise, numerically lowest wins.
         PRIORITY_HIGHEST_WINS_C : boolean  := TRUE;
         -- If 1, highest-numbered request at the highest priority level wins the tiebreak. Otherwise, lowest-numbered.
-        TIEBREAK_HIGHEST_WINS_C : boolean  := FALSE;
+        TIEBREAK_HIGHEST_WINS_C : boolean  := FALSE
         -- Do not modify
-        PRIORITY_WIDTH_C        : positive := integer(ceil(log2(real(N_PRIORITIES_C)))) -- do not modify
+        --PRIORITY_WIDTH_C        : positive := integer(ceil(log2(real(N_PRIORITIES_C)))) -- do not modify
     );
     port(
-        pri : in  std_logic_vector(REQUEST_WIDTH_C * PRIORITY_WIDTH_C - 1 downto 0);
+        pri : in  std_logic_vector(REQUEST_WIDTH_C * clog2(N_PRIORITIES_C) - 1 downto 0);
         req : in  std_logic_vector(REQUEST_WIDTH_C - 1 downto 0);
         gnt : out std_logic_vector(REQUEST_WIDTH_C - 1 downto 0)
     );
 end entity hazard3_onehot_priority_dynamic;
 
 architecture rtl of hazard3_onehot_priority_dynamic is
+
+    constant PRIORITY_WIDTH_C : positive := clog2(N_PRIORITIES_C);
 
     type strat_array_t is array (0 to N_PRIORITIES_C - 1) of std_logic_vector(REQUEST_WIDTH_C - 1 downto 0);
 
@@ -36,7 +40,7 @@ begin
     -- 1. Stratify requests according to their level
     process(all) is
         variable v_level_has_reqquest : std_logic_vector(N_PRIORITIES_C - 1 downto 0);
-        variable v_pri_slice          : integer range 0 to REQUEST_WIDTH_C * PRIORITY_WIDTH_C - 1;
+        variable v_pri_slice          : integer range 0 to N_PRIORITIES_C - 1;
     begin
         v_level_has_reqquest := (others => '0');
 

@@ -15,9 +15,9 @@ end entity hazard3_branchcmp;
 
 architecture rtl of hazard3_branchcmp is
 
-signal difference      : unsigned(DATA_WIDTH_C - 1 downto 0);
-signal compare_is_unsigned : std_logic;
-signal a_is_less_than_b    : std_logic;
+signal difference           : unsigned(DATA_WIDTH_C - 1 downto 0);
+signal compare_is_unsigned  : std_logic;
+signal a_is_less_than_b     : std_logic;
 signal a_not_equal_b        : std_logic;
 
 begin

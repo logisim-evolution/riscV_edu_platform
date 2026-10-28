@@ -50,8 +50,7 @@ use ieee.std_logic_1164.all;
 entity hazard3_ecp5_jtag_dtm is
 	generic (
 		DTMCS_IDLE_HINT : std_logic_vector(2 downto 0) := "100";
-		W_PADDR         : natural                      := 9;
-		ABITS           : natural                      := W_PADDR - 2 -- Do not modify
+		W_PADDR         : natural                      := 9
 	);
 	port (
 		-- This is synchronous to TCK and asserted for one TCK cycle only
@@ -59,7 +58,7 @@ entity hazard3_ecp5_jtag_dtm is
 
 		-- Bus clock + reset for Debug Module Interface
 		clk_dmi   : in std_logic;
-		rst_n_dmi : in std_logic;
+		rst_dmi   : in std_logic;
 
 		-- Debug Module Interface (APB)
 		dmi_psel    : out std_logic;
@@ -74,7 +73,7 @@ entity hazard3_ecp5_jtag_dtm is
 end entity hazard3_ecp5_jtag_dtm;
 
 architecture rtl of hazard3_ecp5_jtag_dtm is
-	constant W_DR_SHIFT : natural := ABITS + 32 + 2;
+	constant W_DR_SHIFT : natural := W_PADDR - 2 + 32 + 2;
 
 	signal jtdo2                       : std_logic;
 	signal jtdo1                       : std_logic;
@@ -225,15 +224,14 @@ begin
 	inst_hazard3_jtag_dtm_core : entity work.hazard3_jtag_dtm_core
 		generic map(
 			DTMCS_IDLE_HINT => DTMCS_IDLE_HINT,
-			W_ADDR          => ABITS,
-			W_DR_SHIFT      => W_DR_SHIFT
+			W_ADDR          => W_PADDR - 2
 		)
 		port map
 		(
 			tck               => jtck,
 			trst_n            => jrst_n,
 			clk_dmi           => clk_dmi,
-			rst_n_dmi         => rst_n_dmi,
+			rst_dmi           => rst_dmi,
 			dr_wen            => core_dr_wen_reg,
 			dr_ren            => core_dr_ren_reg,
 			dr_sel_dmi_ndtmcs => core_dr_sel_dmi_ndtmcs_reg,

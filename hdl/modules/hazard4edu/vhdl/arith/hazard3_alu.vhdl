@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use ieee.numeric_std_unsigned.all;
 
 use work.hazard3_constants.all;
 
@@ -19,8 +20,6 @@ end entity hazard3_alu;
 
 architecture rtl of hazard3_alu is
 
-    signal extension_A_enabled : std_logic;
-
     signal bitwise_operation : std_logic_vector(DATA_WIDTH_C - 1 downto 0);
 
     signal subtraction            : std_logic;
@@ -36,15 +35,13 @@ architecture rtl of hazard3_alu is
 
 begin
 
-    extension_A_enabled <= '1' when EXTENSION_A else '0';
-
     subtraction <= '1' when aluop /= ALUOP_C.ADD else '0';
 
     invert_operand_b   <= '1' when subtraction = '1' and not (aluop = ALUOP_C.AND_OP or aluop = ALUOP_C.OR_OP or aluop = ALUOP_C.XOR_OP or aluop = ALUOP_C.RS2) else
                           '0';
     operand_b_inverted <= op_b xor (DATA_WIDTH_C - 1 downto 0 => invert_operand_b);
 
-    sum_of_a_and_b <= std_logic_vector(unsigned(op_a) + unsigned(operand_b_inverted) + resize(unsigned'(0 => subtraction), DATA_WIDTH_C));
+    sum_of_a_and_b <= op_a + operand_b_inverted + resize(std_logic_vector'(0 => subtraction), DATA_WIDTH_C);
     xor_of_a_and_b <= op_a xor op_b;
 
     comparison_is_unsigned <= '1' when aluop = ALUOP_C.LTU else '0';
@@ -95,7 +92,7 @@ begin
     -- L83-L101
     process(all) is
     begin
-        case? (extension_A_enabled & aluop) is
+        case? (to_std_logic(EXTENSION_A) & aluop) is
             when '-' & ALUOP_C.ADD    |
                  '-' & ALUOP_C.SUB    => result <= sum_of_a_and_b;
             when '-' & ALUOP_C.LT     |

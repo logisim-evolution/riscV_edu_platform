@@ -230,7 +230,7 @@ endgenerate
 
 always @ (posedge CLK_I) begin
     if (RST_I || !dmactive) begin
-        dmactive <= (dmi_write && dmi_regaddr == ADDR_DMCONTROL && !RST_I) ? dmactive <= dmi_pwdata[0] : 1'b0;
+        dmactive <= (dmi_write && dmi_regaddr == ADDR_DMCONTROL && !RST_I) ? dmi_pwdata[0] : 1'b0;
         dmcontrol_ndmreset <= 1'b0;
         dmcontrol_haltreq <= {N_HARTS{1'b0}};
         dmcontrol_hartreset <= {N_HARTS{1'b0}};

@@ -6,13 +6,13 @@ use work.hazard3_constants.all;
 
 entity hazard3_muldiv_seq is
     generic(
-        MULDIV_UNROLL : positive := 1;
+        MULDIV_UNROLL : positive := 2;
         MUL_FAST      : boolean;
         MULH_FAST     : boolean
     );
     port(
         clk        : in  std_logic;
-        rst_n      : in  std_logic;
+        rst        : in  std_logic;
         op         : in  std_logic_vector(MULOP_WIDTH_C - 1 downto 0);
         op_vld     : in  std_logic;
         op_rdy     : out std_logic;
@@ -159,62 +159,63 @@ begin
     -- -------------------------------------------------------------------------
     -- Main State Machine
     -- -------------------------------------------------------------------------
-    process(clk, rst_n)
+    process(clk)
     begin
-        if rst_n = '0' then
-            ctr                <= 0;
-            sign_preadj_done   <= '1';
-            sign_postadj_done  <= '1';
-            sign_postadj_carry <= '0';
-            op_r               <= (others => '0');
-            op_a_neg_r         <= '0';
-            op_b_neg_r         <= '0';
-            op_b_r             <= (others => '0');
-            accum              <= (others => '0');
-
-        elsif rising_edge(clk) then
-            if op_kill = '1' or (op_vld = '1' and op_rdy = '1') then
-                -- Initialize circuit[cite: 4]
-                if op_vld = '1' then ctr <= DATA_WIDTH_C; else ctr <= 0; end if;
-                sign_preadj_done   <= not op_vld;
-                sign_postadj_done  <= not op_vld;
+        if rising_edge(clk) then
+            if ?? rst then
+                ctr                <= 0;
+                sign_preadj_done   <= '1';
+                sign_postadj_done  <= '1';
                 sign_postadj_carry <= '0';
-                op_r               <= op;
-                op_b_r             <= op_b;
-                accum              <= (2 * DATA_WIDTH_C - 1 downto DATA_WIDTH_C => '0') & op_a;
+                op_r               <= (others => '0');
+                op_a_neg_r         <= '0';
+                op_b_neg_r         <= '0';
+                op_b_r             <= (others => '0');
+                accum              <= (others => '0');
+            else
+                if  ?? (op_kill or (op_vld and op_rdy)) then
+                    -- Initialize circuit[cite: 4]
+                    if op_vld = '1' then ctr <= DATA_WIDTH_C; else ctr <= 0; end if;
+                    sign_preadj_done   <= not op_vld;
+                    sign_postadj_done  <= not op_vld;
+                    sign_postadj_carry <= '0';
+                    op_r               <= op;
+                    op_b_r             <= op_b;
+                    accum              <= (2 * DATA_WIDTH_C - 1 downto DATA_WIDTH_C => '0') & op_a;
 
-            elsif sign_preadj_done = '0' then
-                op_a_neg_r       <= op_a_neg;
-                op_b_neg_r       <= op_b_neg;
-                sign_preadj_done <= '1';
-                
-                if accum_neg_l = '1' or (op_b_neg xor is_div) = '1' then
-                    if accum_neg_l = '1' then
-                        accum(DATA_WIDTH_C - 1 downto 0) <= accum_next(DATA_WIDTH_C - 1 downto 0);
+                elsif ?? (not sign_preadj_done) then
+                    op_a_neg_r       <= op_a_neg;
+                    op_b_neg_r       <= op_b_neg;
+                    sign_preadj_done <= '1';
+
+                    if ?? (accum_neg_l or (op_b_neg xor is_div)) then
+                        if ?? accum_neg_l then
+                            accum(DATA_WIDTH_C - 1 downto 0) <= accum_next(DATA_WIDTH_C - 1 downto 0);
+                        end if;
+                        if ?? (op_b_neg xor is_div) then
+                            op_b_r <= std_logic_vector(-signed(op_b_r));
+                        end if;
+                    else
+                        ctr   <= ctr - MULDIV_UNROLL;
+                        accum <= accum_next;
                     end if;
-                    if (op_b_neg xor is_div) = '1' then
-                        op_b_r <= std_logic_vector(-signed(op_b_r));
-                    end if;
-                else
+
+                elsif ctr > 0 then
                     ctr   <= ctr - MULDIV_UNROLL;
                     accum <= accum_next;
-                end if;
 
-            elsif ctr > 0 then
-                ctr   <= ctr - MULDIV_UNROLL;
-                accum <= accum_next;
+                elsif ?? (not sign_postadj_done or sign_postadj_carry) then
+                    sign_postadj_done <= '1';
 
-            elsif sign_postadj_done = '0' or sign_postadj_carry = '1' then
-                sign_postadj_done <= '1';
-                
-                if accum_inv_h = '1' or accum_incr_h = '1' then
-                    accum(2 * DATA_WIDTH_C - 1 downto DATA_WIDTH_C) <= accum_next(2 * DATA_WIDTH_C - 1 downto DATA_WIDTH_C);
-                end if;
-                if accum_neg_l = '1' then
-                    accum(DATA_WIDTH_C - 1 downto 0) <= accum_next(DATA_WIDTH_C - 1 downto 0);
-                    if is_div = '0' then
-                        sign_postadj_carry <= neg_l_borrow;
-                        sign_postadj_done  <= not neg_l_borrow;
+                    if ?? (accum_inv_h or accum_incr_h) then
+                        accum(2 * DATA_WIDTH_C - 1 downto DATA_WIDTH_C) <= accum_next(2 * DATA_WIDTH_C - 1 downto DATA_WIDTH_C);
+                    end if;
+                    if ?? accum_neg_l then
+                        accum(DATA_WIDTH_C - 1 downto 0) <= accum_next(DATA_WIDTH_C - 1 downto 0);
+                        if is_div = '0' then
+                            sign_postadj_carry <= neg_l_borrow;
+                            sign_postadj_done  <= not neg_l_borrow;
+                        end if;
                     end if;
                 end if;
             end if;

@@ -1,0 +1,73 @@
+# Equivalence checks of the debug module: the VHDL port (vhdl/) against the Hazard3 reference (verilog/).
+# Run with ./run.py, see verification/README.md in the repository root for the format.
+#
+# None of these tests override generics, so the 'basic' and 'extensive' levels are the same.
+
+[filesets.sync_1bit]
+vhdl    = ["hazard3_sync_1bit.vhdl"]
+verilog = ["hazard3_sync_1bit.v"]
+
+[filesets.reset_sync]
+vhdl    = ["hazard3_reset_sync.vhdl"]
+verilog = ["hazard3_reset_sync.v"]
+
+[filesets.apb_async_bridge]
+use     = ["sync_1bit"]
+vhdl    = ["hazard3_apb_async_bridge.vhdl"]
+verilog = ["hazard3_apb_async_bridge.v"]
+
+# Common dependencies of the JTAG debug transport modules
+[filesets.jtag_dtm_core]
+use     = ["apb_async_bridge"]
+vhdl    = ["hazard3_jtag_dtm_core.vhdl"]
+verilog = ["hazard3_jtag_dtm_core.v"]
+
+[filesets.ecp5_jtag_dtm]
+use     = ["jtag_dtm_core"]
+vhdl    = ["hazard3_ecp5_jtag_dtm.vhdl"]
+verilog = ["hazard3_ecp5_jtag_dtm.v"]
+
+[filesets.dm]
+vhdl    = ["hazard3_dm.vhdl"]
+verilog = ["hazard3_dm.v"]
+
+[[test]]
+name  = "hazard3_sync_1bit"
+use   = ["sync_1bit"]
+reset = { rst = [1, 0] }
+
+[[test]]
+name  = "hazard3_reset_sync"
+use   = ["reset_sync"]
+reset = { rst_in = [1, 0] }
+
+[[test]]
+name  = "hazard3_apb_async_bridge"
+use   = ["apb_async_bridge"]
+reset = { rst_src = [1, 0], rst_dst = [1, 0] }
+
+[[test]]
+name       = "hazard3_dm"
+use        = ["dm"]
+reset      = { RST_I = [1, 0] }
+sat_cycles = 8
+
+[[test]]
+name  = "hazard3_jtag_dtm_core"
+use   = ["jtag_dtm_core"]
+reset = { trst_n = [0, 1], rst_dmi = [1, 0] }
+
+# The ECP5 JTAGG primitive is vendor specific, so it is replaced by an empty blackbox
+[[test]]
+name     = "hazard3_ecp5_jtag_dtm"
+use      = ["ecp5_jtag_dtm"]
+reset    = { rst_dmi = [1, 0] }
+blackbox = ["verification/ecp5_jtagg_blackbox.v"]
+
+[[test]]
+name     = "debugTop"
+use      = ["ecp5_jtag_dtm", "reset_sync", "dm"]
+vhdl     = ["debugTop.vhdl"]
+verilog  = ["debugTop.v"]
+reset    = { RST_I = [1, 0] }
+blackbox = ["verification/ecp5_jtagg_blackbox.v"]

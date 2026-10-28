@@ -4,29 +4,19 @@ use ieee.numeric_std.all;
 use ieee.math_real.ceil;
 use ieee.math_real.log2;
 
-entity hazard3_dm_ecp5 is
+entity debugTop is
     generic(
         -- Where there are multiple harts per DM, the least-indexed hart is the
         -- least-significant on each concatenated hart access bus.
         N_HARTS         : positive                       := 1;
         -- Where there are multiple DMs, the address of each DM should be a
         -- multiple of 'h200, so that bits[8:2] decode correctly.
-        NEXT_DM_ADDR    : std_logic_vector(31 downto 0)  := x"00000000";
+        NEXT_DM_ADDR    : std_logic_vector(31 downto 0)  := x"0000_0000";
         -- Implement support for system bus access:
-        HAVE_SBA        : natural                        := 1;
         DTMCS_IDLE_HINT : std_logic_vector(2 downto 0)   := "100";
-        W_PADDR         : positive                       := 9;
-
-        -- Do not modify:
-        ABITS           : positive                       := W_PADDR - 2; -- Do not modify
-        XLEN            : positive                       := 32; -- Do not modify
-        W_HARTSEL       : positive := integer(ceil(log2(real(maximum(2, N_HARTS))))) -- N_HARTS > 1 ? $clog2(N_HARTS) : 1 TODO
+        W_PADDR         : positive                       := 9
     );
     port(
-        -- DM is assumed to be in same clock domain as core; clock crossing
-        -- (if any) is inside DTM, or between DTM and DM.
-        clk                         : in  std_logic;
-        rst_n                       : in  std_logic;
         -- Reset request/acknowledge. "req" is a pulse >= 1 cycle wide. "done" is
         -- level-sensitive, goes high once component is out of reset.
         -- The "sys" reset (ndmreset) is conventionally everything apart from DM +
@@ -45,8 +35,8 @@ entity hazard3_dm_ecp5 is
         hart_halted                 : in  std_logic_vector(N_HARTS - 1 downto 0);
         hart_running                : in  std_logic_vector(N_HARTS - 1 downto 0);
         -- Hart access to data0 CSR (assumed to be core-internal but per-hart)
-        hart_data0_rdata            : out std_logic_vector(N_HARTS * XLEN - 1 downto 0);
-        hart_data0_wdata            : in  std_logic_vector(N_HARTS * XLEN - 1 downto 0);
+        hart_data0_rdata            : out std_logic_vector(N_HARTS * 32 - 1 downto 0);
+        hart_data0_wdata            : in  std_logic_vector(N_HARTS * 32 - 1 downto 0);
         hart_data0_wen              : in  std_logic_vector(N_HARTS - 1 downto 0);
         -- Hart instruction injection
         hart_instr_data             : out std_logic_vector(N_HARTS * 32 - 1 downto 0);
@@ -59,22 +49,31 @@ entity hazard3_dm_ecp5 is
         -- wrapper, which muxes SBA into the processor's load/store bus access
         -- port. SBA does not increase debugger bus throughput, but supports
         -- minimally intrusive debug bus access for e.g. Segger RTT.
-        sbus_addr                   : out std_logic_vector(31 downto 0);
-        sbus_write                  : out std_logic;
-        sbus_size                   : out std_logic_vector(1 downto 0);
-        sbus_vld                    : out std_logic;
-        sbus_rdy                    : in  std_logic;
-        sbus_err                    : in  std_logic;
-        sbus_wdata                  : out std_logic_vector(31 downto 0);
-        sbus_rdata                  : in  std_logic_vector(31 downto 0)
+        
+        -- Wishbone Master Interface, replaces System bus
+        CLK_I  : in  std_logic;
+        RST_I  : in  std_logic;
+        DAT_I  : in  std_logic_vector(31 downto 0);
+        DAT_O  : out std_logic_vector(31 downto 0);
+        -- TAGD_I/O are not implemented
+        ACK_I  : in  std_logic;
+        ADDR_O : out std_logic_vector(31 downto 0);
+        CYC_O  : out std_logic;
+        ERR_I  : in  std_logic;
+        -- LOCK_O & RTY_I are not implemented
+        SEL_O  : out std_logic_vector(3 downto 0);
+        STB_O  : out std_logic;
+        -- TGA_O & TGC_O are not implemented
+        WE_O   : out std_logic;
+        CTI_O  : out std_logic_vector(2 downto 0)
     );
-end entity hazard3_dm_ecp5;
+end entity debugTop;
 
-architecture rtl of hazard3_dm_ecp5 is
+architecture rtl of debugTop is
 
-    signal dmi_rst_n   : std_logic;
+    signal dmi_rst   : std_logic;
     signal dmihardreset_req : std_logic;
-    signal assert_dmi_reset_n : std_logic;
+    signal assert_dmi_reset : std_logic;
     signal dmi_psel    : std_logic;
     signal dmi_penable : std_logic;
     signal dmi_pwrite  : std_logic;
@@ -86,26 +85,25 @@ architecture rtl of hazard3_dm_ecp5 is
 
 begin
 
-    assert_dmi_reset_n <= (not dmihardreset_req) or rst_n;
+    assert_dmi_reset <= dmihardreset_req or RST_I;
 
     reset_sync : entity work.hazard3_reset_sync
         port map(
-            clk       => clk,
-            rst_n_in  => assert_dmi_reset_n,
-            rst_n_out => dmi_rst_n
+            clk     => CLK_I,
+            rst_in  => assert_dmi_reset,
+            rst_out => dmi_rst
         );
     
 
-    ecp5_debug_jtag : entity work.hazard3_ecp5_jtag_dtm
+    hazard3_ecp5_jtag_dtm_instance : entity work.hazard3_ecp5_jtag_dtm
         generic map(
             DTMCS_IDLE_HINT => DTMCS_IDLE_HINT,
-            W_PADDR         => W_PADDR,
-            ABITS           => ABITS
+            W_PADDR         => W_PADDR
         )
         port map(
             dmihardreset_req => dmihardreset_req,
-            clk_dmi          => clk,
-            rst_n_dmi        => dmi_rst_n,
+            clk_dmi          => CLK_I,
+            rst_dmi          => dmi_rst,
             dmi_psel         => dmi_psel,
             dmi_penable      => dmi_penable,
             dmi_pwrite       => dmi_pwrite,
@@ -116,17 +114,14 @@ begin
             dmi_pslverr      => dmi_pslverr
         );
     
-    debug_module : entity work.hazard3_dm
+    hazard3_dm_instance : entity work.hazard3_dm
         generic map(
             N_HARTS      => N_HARTS,
-            NEXT_DM_ADDR => NEXT_DM_ADDR,
-            HAVE_SBA     => HAVE_SBA,
-            XLEN         => XLEN,
-            W_HARTSEL    => W_HARTSEL
+            NEXT_DM_ADDR => NEXT_DM_ADDR
         )
         port map(
-            clk                         => clk,
-            rst_n                       => rst_n,
+            CLK_I                       => CLK_I,
+            RST_I                       => RST_I,
             dmi_psel                    => dmi_psel,
             dmi_penable                 => dmi_penable,
             dmi_pwrite                  => dmi_pwrite,
@@ -152,14 +147,16 @@ begin
             hart_instr_data_rdy         => hart_instr_data_rdy,
             hart_instr_caught_exception => hart_instr_caught_exception,
             hart_instr_caught_ebreak    => hart_instr_caught_ebreak,
-            sbus_addr                   => sbus_addr,
-            sbus_write                  => sbus_write,
-            sbus_size                   => sbus_size,
-            sbus_vld                    => sbus_vld,
-            sbus_rdy                    => sbus_rdy,
-            sbus_err                    => sbus_err,
-            sbus_wdata                  => sbus_wdata,
-            sbus_rdata                  => sbus_rdata
+            DAT_I                       => DAT_I,
+            DAT_O                       => DAT_O,
+            ACK_I                       => ACK_I,
+            ADDR_O                      => ADDR_O,
+            CYC_O                       => CYC_O,
+            ERR_I                       => ERR_I,
+            SEL_O                       => SEL_O,
+            STB_O                       => STB_O,
+            WE_O                        => WE_O,
+            CTI_O                       => CTI_O
         );
     
 

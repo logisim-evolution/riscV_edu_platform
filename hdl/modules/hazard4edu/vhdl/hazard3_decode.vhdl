@@ -5,21 +5,21 @@ use work.hazard3_constants.all;
 
 entity hazard3_decode is
     generic(
-        RESET_VECTOR     : unsigned(31 downto 0) := x"0000_0000";
-        EXTENSION_A      : boolean                       := true;
-        EXTENSION_C      : boolean                       := true;
-        EXTENSION_E      : boolean                       := true;
-        EXTENSION_M      : boolean                       := true;
-        CSR_M_MANDATORY  : boolean                       := true;
-        CSR_M_TRAP       : boolean                       := true;
-        CSR_COUNTER      : boolean                       := false;
-        U_MODE           : boolean                       := false;
-        DEBUG_SUPPORT    : boolean                       := false;
-        BRANCH_PREDICTOR : boolean                       := false
+        EXTENSION_A      : boolean := true;
+        EXTENSION_C      : boolean := true;
+        EXTENSION_M      : boolean := true;
+        CSR_M_MANDATORY  : boolean := true;
+        CSR_M_TRAP       : boolean := true;
+        CSR_COUNTER      : boolean := true;
+        U_MODE           : boolean := false;
+        DEBUG_SUPPORT    : boolean := true;
+        BRANCH_PREDICTOR : boolean := true
     );
     port(
         clk                     : in  std_logic;
-        rst_n                   : in  std_logic;
+        rst                     : in  std_logic;
+
+        reset_vector            : in  std_logic_vector(31 downto 0);
 
         fd_cir                  : in  std_logic_vector(31 downto 0);
         fd_cir_err              : in  std_logic_vector(1 downto 0);
@@ -147,6 +147,7 @@ begin
 
     d_instr <= fd_cir or (30d"0" & not to_std_logic(EXTENSION_C) & not to_std_logic(EXTENSION_C));
     d_invalid <= fd_cir_invalid_16bit or d_invalid_32bit;
+    d_uninterruptible <= '0';
 
     -- Signal to null the mepc offset when taking an exception on this
     -- instruction (because uops in a sequence *which can except*, so excluding
@@ -165,11 +166,11 @@ begin
     df_uop_clear <= f_jump_now and not df_cir_flush_behind;
 
     -- Decode various immediate formats
-    d_imm_i <= ((31 downto 11 => d_instr(31)), d_instr(30 downto 20));
-    d_imm_s <= ((31 downto 11 => d_instr(31)), d_instr(30 downto 25), d_instr(11 downto 7));
-    d_imm_b <= ((31 downto 12 => d_instr(31)), d_instr(7), d_instr(30 downto 25), d_instr(11 downto 8), '0');
-    d_imm_u <= (d_instr(31 downto 12), (others => '0'));
-    d_imm_j <= ((31 downto 20 => d_instr(31)), d_instr(19 downto 12), d_instr(20), d_instr(30 downto 21), '0');
+    d_imm_i <= std_logic_vector'(31 downto 11 => d_instr(31)) & d_instr(30 downto 20);
+    d_imm_s <= std_logic_vector'(31 downto 11 => d_instr(31)) & d_instr(30 downto 25) & d_instr(11 downto 7);
+    d_imm_b <= std_logic_vector'(31 downto 12 => d_instr(31)) & d_instr(7) & d_instr(30 downto 25) & d_instr(11 downto 8) & '0';
+    d_imm_u <= d_instr(31 downto 12) & 12d"0";
+    d_imm_j <= std_logic_vector'(31 downto 20 => d_instr(31)) & d_instr(19 downto 12) & d_instr(20) & d_instr(30 downto 21) & '0';
 
     -- -------------------------------------------------------------------------
     -- PC/CIR control
@@ -209,12 +210,14 @@ begin
 
     cir_lock <= (cir_lock_prev_reg and not deassert_cir_lock) or assert_cir_lock;
     df_cir_flush_behind <= assert_cir_lock and not cir_lock_prev_reg;
-    process(clk, rst_n) is
+    process(clk) is
     begin
-        if rst_n = '0' then
-            cir_lock_prev_reg <= '0';
-        elsif rising_edge(clk) then
-            cir_lock_prev_reg <= cir_lock;
+        if rising_edge(clk) then
+            if ?? rst then
+                cir_lock_prev_reg <= '0';
+            else
+                cir_lock_prev_reg <= cir_lock;
+            end if;
         end if;
     end process;
     
@@ -238,29 +241,31 @@ begin
     hold_pc_on_cir_lock <= assert_cir_lock and not (fd_cir_is_uop and (not fd_cir_uop_no_pc_update) and (not x_stall));
     update_pc_on_cir_unlock <= cir_lock_prev_reg and finished_cir_lock and (not fd_cir_uop_no_pc_update);
 
-    process(clk, rst_n) is
+    process(clk) is
     begin
-        if rst_n = '0' then
-            pc_reg <= RESET_VECTOR;
-        elsif rising_edge(clk) then
-            if debug_dpc_wen = '1' then
-                pc_reg <= unsigned(debug_dpc_wdata);
-            elsif debug_mode = '1' then
-                pc_reg <= pc_reg;
-            elsif (f_jump_now = '1' and hold_pc_on_cir_lock = '0') or update_pc_on_cir_unlock = '1' then
-                pc_reg <= unsigned(f_jump_target);
-            elsif (f_jump_now = '0' and fd_cir_uop_nonfinal = '1' and fd_cir_uop_no_pc_update = '0' and x_stall = '0') then
-                -- End of previously stalled jr uop in cm.popret and cm.popretz:
-                -- safe to update PC as next instruction (addi sp) cannot trap.
-                pc_reg <= unsigned(f_jump_target);
-            elsif d_stall = '0' and cir_lock = '0' then
-                -- If this instruction is a predicted-taken branch (and has not
-                -- generated a mispredict recovery jump) then set the PC to the
-                -- prediction target instead of the sequenyially next PC
-                if predicted_branch = '1' then
-                    pc_reg <= unsigned(d_btb_target_addr);
-                else
-                    pc_reg <= pc_seq_next;
+        if rising_edge(clk) then
+            if ?? rst then
+                pc_reg <= unsigned(reset_vector);
+            else
+                if debug_dpc_wen = '1' then
+                    pc_reg <= unsigned(debug_dpc_wdata);
+                elsif debug_mode = '1' then
+                    pc_reg <= pc_reg;
+                elsif (f_jump_now = '1' and hold_pc_on_cir_lock = '0') or update_pc_on_cir_unlock = '1' then
+                    pc_reg <= unsigned(f_jump_target);
+                elsif (f_jump_now = '0' and fd_cir_uop_nonfinal = '1' and fd_cir_uop_no_pc_update = '0' and x_stall = '0') then
+                    -- End of previously stalled jr uop in cm.popret and cm.popretz:
+                    -- safe to update PC as next instruction (addi sp) cannot trap.
+                    pc_reg <= unsigned(f_jump_target);
+                elsif d_stall = '0' and cir_lock = '0' then
+                    -- If this instruction is a predicted-taken branch (and has not
+                    -- generated a mispredict recovery jump) then set the PC to the
+                    -- prediction target instead of the sequenyially next PC
+                    if predicted_branch = '1' then
+                        pc_reg <= unsigned(d_btb_target_addr);
+                    else
+                        pc_reg <= pc_seq_next;
+                    end if;
                 end if;
             end if;
         end if;
@@ -273,13 +278,13 @@ begin
     process(all) is
     begin
         case? (to_std_logic(EXTENSION_A) & d_instr(6 downto 2)) is
-            when "-_11011" => d_addr_offs <= d_imm_j;     -- JAL
-            when "-_11000" => d_addr_offs <= branch_offs; -- Branches
-            when "-_01000" => d_addr_offs <= d_imm_s;     -- Store
-            when "-_11001" => d_addr_offs <= d_imm_i;     -- JALR
-            when "-_00000" => d_addr_offs <= d_imm_i;     -- Loads
-            when "1_01011" => d_addr_offs <= 32d"0";      -- Atomics
-            when others => d_addr_offs <= x"XXXX_XXXX";
+            when "-11011" => d_addr_offs <= d_imm_j;     -- JAL
+            when "-11000" => d_addr_offs <= branch_offs; -- Branches
+            when "-01000" => d_addr_offs <= d_imm_s;     -- Store
+            when "-11001" => d_addr_offs <= d_imm_i;     -- JALR
+            when "-00000" => d_addr_offs <= d_imm_i;     -- Loads
+            when "101011" => d_addr_offs <= 32d"0";      -- Atomics
+            when others => d_addr_offs <= (others => '-');
         end case?;
         if partial_predicted_branch = '1' then
             d_addr_offs <= 32d"0";
@@ -313,7 +318,7 @@ begin
         raw_mulop <= MULOP_C.MUL;
         raw_csr_ren <= '0';
         raw_csr_wen <= '0';
-        raw_csr_wtype <= TODO;
+        raw_csr_wtype <= CSR_WTYPE.W;
         raw_csr_w_imm <= '0';
         raw_branchcond <= BRANCH_C.NEVER;
         raw_addr_is_regoffs <= '0';
@@ -369,7 +374,6 @@ begin
                 raw_aluop <= ALUOP_C.ADD;
                 raw_alusrc_a <= ALUSRCA_C.PC;
                 raw_alusrc_b <= ALUSRCB_C.IMM;
-                raw_rs1 <= REGISTER_X0;
                 if fd_cir_is_32bit = '1' then
                     raw_imm <= 32d"4";
                 else
@@ -388,10 +392,435 @@ begin
                 else
                     raw_imm <= 32d"2";
                 end if;
-            when others => null;
+            when OPCODE_C.LUI => 
+                raw_aluop <= ALUOP_C.RS2;
+                raw_imm <= d_imm_u;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+                raw_rs1 <= REGISTER_X0;
+            when OPCODE_C.AUIPC => 
+                d_invalid_32bit <= to_std_logic(DEBUG_SUPPORT) and debug_mode;
+                raw_aluop <= ALUOP_C.ADD;
+                raw_imm <= d_imm_u;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+                raw_alusrc_a <= ALUSRCA_C.PC;
+                raw_rs1 <= REGISTER_X0;
+            when OPCODE_C.ADDI => 
+                raw_aluop <= ALUOP_C.ADD;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.SLLI => 
+                raw_aluop <= ALUOP_C.SLL_OP;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.SLTI => 
+                raw_aluop <= ALUOP_C.LT;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.SLTIU => 
+                raw_aluop <= ALUOP_C.LTU;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.XORI => 
+                raw_aluop <= ALUOP_C.XOR_OP;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.SRLI => 
+                raw_aluop <= ALUOP_C.SRL_OP;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.SRAI => 
+                raw_aluop <= ALUOP_C.SRA_OP;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.ORI => 
+                raw_aluop <= ALUOP_C.OR_OP;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.ANDI => 
+                raw_aluop <= ALUOP_C.AND_OP;
+                raw_imm <= d_imm_i;
+                raw_alusrc_b <= ALUSRCB_C.IMM;
+                raw_rs2 <= REGISTER_X0;
+            when OPCODE_C.ADD => 
+                raw_aluop <= ALUOP_C.ADD;
+            when OPCODE_C.SUB => 
+                raw_aluop <= ALUOP_C.SUB;
+            when OPCODE_C.SLL32 => 
+                raw_aluop <= ALUOP_C.SLL_OP;
+            when OPCODE_C.SLTU => 
+                raw_aluop <= ALUOP_C.LTU;
+            when OPCODE_C.XOR_OP => 
+                raw_aluop <= ALUOP_C.XOR_OP;
+            when OPCODE_C.SRL32 => 
+                raw_aluop <= ALUOP_C.SRL_OP;
+            when OPCODE_C.SRA32 => 
+                raw_aluop <= ALUOP_C.SRA_OP;
+            when OPCODE_C.OR_OP => 
+                raw_aluop <= ALUOP_C.OR_OP;
+            when OPCODE_C.AND_OP => 
+                raw_aluop <= ALUOP_C.AND_OP;
+            when OPCODE_C.LB => 
+                raw_addr_is_regoffs <= '1';
+                raw_rs2 <= REGISTER_X0;
+                raw_memop <= MEMOP_C.LOAD_BYTE;
+            when OPCODE_C.LH => 
+                raw_addr_is_regoffs <= '1';
+                raw_rs2 <= REGISTER_X0;
+                raw_memop <= MEMOP_C.LOAD_HALF;
+            when OPCODE_C.LW => 
+                raw_addr_is_regoffs <= '1';
+                raw_rs2 <= REGISTER_X0;
+                raw_memop <= MEMOP_C.LOAD_WORD;
+            when OPCODE_C.LBU => 
+                raw_addr_is_regoffs <= '1';
+                raw_rs2 <= REGISTER_X0;
+                raw_memop <= MEMOP_C.LOAD_BYTE_UNSIGNED;
+            when OPCODE_C.LHU => 
+                raw_addr_is_regoffs <= '1';
+                raw_rs2 <= REGISTER_X0;
+                raw_memop <= MEMOP_C.LOAD_HALF_UNSIGNED;
+            when OPCODE_C.SB => 
+                raw_addr_is_regoffs <= '1';
+                raw_aluop <= ALUOP_C.RS2;
+                raw_memop <= MEMOP_C.STORE_BYTE;
+                raw_rd <= REGISTER_X0;
+            when OPCODE_C.SH => 
+                raw_addr_is_regoffs <= '1';
+                raw_aluop <= ALUOP_C.RS2;
+                raw_memop <= MEMOP_C.STORE_HALF;
+                raw_rd <= REGISTER_X0;
+            when OPCODE_C.SW => 
+                raw_addr_is_regoffs <= '1';
+                raw_aluop <= ALUOP_C.RS2;
+                raw_memop <= MEMOP_C.STORE_WORD;
+                raw_rd <= REGISTER_X0;
+            ------------------------ EXTENSION M ------------------------
+            when OPCODE_C.MUL => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.MUL;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.MULH => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.MULH;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.MULHSU => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.MULHSU;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.MULHU => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.MULHU;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.DIV => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.DIV;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.DIVU => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.DIVU;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.REM_OP => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.REMI;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.REMU => 
+                if EXTENSION_M then
+                    raw_aluop <= ALUOP_C.MULDIV;
+                    raw_mulop <= MULOP_C.REMIU;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            ------------------------ EXTENSION A ------------------------
+            when OPCODE_C.LR_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.LOAD_RESERVED_WORD;
+                    raw_rs2 <= REGISTER_X0;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.SC_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.STORE_CONDITIONAL_WORD;
+                    raw_aluop <= ALUOP_C.RS2;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOSWAP_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.RS2;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOADD_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.ADD;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOXOR_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.XOR_OP;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOAND_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.AND_OP;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOOR_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.OR_OP;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOMIN_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.MIN;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOMAX_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.MAX;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOMINU_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.MINU;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.AMOMAXU_W => 
+                if EXTENSION_A then
+                    raw_addr_is_regoffs <= '1';
+                    raw_memop <= MEMOP_C.ATOMIC_MEM_OP;
+                    raw_aluop <= ALUOP_C.MAXU;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            ------------------------   HAVE CSR   ------------------------
+            when OPCODE_C.CSRRW => 
+                if HAVE_CSR then
+                    raw_rs2 <= REGISTER_X0;
+                    raw_imm <= d_imm_i;
+                    raw_csr_wen <= '1';
+                    raw_csr_ren <= or raw_rd;
+                    raw_csr_wtype <= CSR_WTYPE.W;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.CSRRS => 
+                if HAVE_CSR then
+                    raw_rs2 <= REGISTER_X0;
+                    raw_imm <= d_imm_i;
+                    raw_csr_wen <= or raw_rs1;
+                    raw_csr_ren <= '1';
+                    raw_csr_wtype <= CSR_WTYPE.S;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.CSRRC => 
+                if HAVE_CSR then
+                    raw_rs2 <= REGISTER_X0;
+                    raw_imm <= d_imm_i;
+                    raw_csr_wen <= or raw_rs1;
+                    raw_csr_ren <= '1';
+                    raw_csr_wtype <= CSR_WTYPE.C;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.CSRRWI => 
+                if HAVE_CSR then
+                    raw_rs2 <= REGISTER_X0;
+                    raw_imm <= d_imm_i;
+                    raw_csr_wen <= '1';
+                    raw_csr_ren <= or raw_rd;
+                    raw_csr_wtype <= CSR_WTYPE.W;
+                    raw_csr_w_imm <= '1';
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.CSRRSI => 
+                if HAVE_CSR then
+                    raw_rs2 <= REGISTER_X0;
+                    raw_imm <= d_imm_i;
+                    raw_csr_wen <= or raw_rs1;
+                    raw_csr_ren <= '1';
+                    raw_csr_wtype <= CSR_WTYPE.S;
+                    raw_csr_w_imm <= '1';
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.CSRRCI => 
+                if HAVE_CSR then
+                    raw_rs2 <= REGISTER_X0;
+                    raw_imm <= d_imm_i;
+                    raw_csr_wen <= or raw_rs1;
+                    raw_csr_ren <= '1';
+                    raw_csr_wtype <= CSR_WTYPE.C;
+                    raw_csr_w_imm <= '1';
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.FENCE => 
+                raw_rs2 <= REGISTER_X0;
+                raw_fence_d <= '1';
+            when OPCODE_C.ECALL => 
+                if HAVE_CSR then
+                    if m_mode /= '0' or not U_MODE then
+                        raw_except <= EXCEPT_C.ENVIRONMENT_CALL_FROM_M_MODE;
+                    else
+                        raw_except <= EXCEPT_C.ENVIRONMENT_CALL_FROM_U_MODE;
+                    end if;
+                    raw_rs2 <= REGISTER_X0;
+                    raw_rs1 <= REGISTER_X0;
+                    raw_rd <= REGISTER_X0;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.EBREAK => 
+                if HAVE_CSR then
+                    raw_except <= EXCEPT_C.EBREAKPOINT;
+                    raw_rs2 <= REGISTER_X0;
+                    raw_rs1 <= REGISTER_X0;
+                    raw_rd <= REGISTER_X0;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.MRET => 
+                if HAVE_CSR and m_mode = '1' then
+                    raw_except <= EXCEPT_C.RETURN_FROM_M_MODE;
+                    raw_rs2 <= REGISTER_X0;
+                    raw_rs1 <= REGISTER_X0;
+                    raw_rd <= REGISTER_X0;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when OPCODE_C.WFI => 
+                if HAVE_CSR and trap_wfi = '0' then
+                    raw_sleep_wfi <= '1';
+                    raw_rs2 <= REGISTER_X0;
+                    raw_rs1 <= REGISTER_X0;
+                    raw_rd <= REGISTER_X0;
+                else
+                    d_invalid_32bit <= '1';
+                end if;
+            when others =>
+                d_invalid_32bit <= '1';
         end case?;
-        
     end process;
 
+    -- Then gate key signals based on CIR fullness, fetch faults etc. The split
+    -- helps to avoid an event scheduling feedback loop that makes simulators
+    -- unhappy and slow, particularly verilator
+    process (all) is
+    begin
+        d_rs1 <= raw_rs1;
+        d_rs2 <= raw_rs2;
+        d_rd <= raw_rd;
+        d_imm <= raw_imm;
+        d_alusrc_a <= raw_alusrc_a;
+        d_alusrc_b <= raw_alusrc_b;
+        d_aluop <= raw_aluop;
+        d_memop <= raw_memop;
+        d_mulop <= raw_mulop;
+        d_csr_ren <= raw_csr_ren;
+        d_csr_wen <= raw_csr_wen;
+        d_csr_wtype <= raw_csr_wtype;
+        d_csr_w_imm <= raw_csr_w_imm;
+        d_branchcond <= raw_branchcond;
+        d_addr_is_regoffs <= raw_addr_is_regoffs;
+        d_except <= raw_except;
+        d_sleep_wfi <= raw_sleep_wfi;
+        d_sleep_block <= raw_sleep_block;
+        d_sleep_unblock <= raw_sleep_unblock;
+        d_fence_i <= raw_fence_i;
+        d_fence_d <= raw_fence_d;
+
+        if (d_invalid or d_starved or d_except_instr_bus_fault or partial_predicted_branch) = '1' then
+            d_rs1 <= (others => '0');
+            d_rs2 <= (others => '0');
+            d_rd <= (others  => '0');
+            d_memop <= MEMOP_C.NONE;
+            d_branchcond <= BRANCH_C.NEVER;
+            d_csr_ren <= '0';
+            d_csr_wen <= '0';
+            d_except <= EXCEPT_C.NO_EXCEPTION;
+            d_sleep_wfi <= '0';
+            d_sleep_block <= '0';
+            d_sleep_unblock <= '0';
+            d_fence_i <= '0';
+            d_fence_d <= '0';
+
+            if EXTENSION_M then
+                d_aluop <= ALUOP_C.ADD;
+            end if;
+
+            if d_except_instr_bus_fault = '1' then
+                d_except <= EXCEPT_C.INSTRUCTION_FAULT;
+            elsif d_invalid = '1' and d_starved = '0' then
+                d_except <= EXCEPT_C.ILLEGAL_INSTRUCTION;
+            end if;
+        end if;
+        if partial_predicted_branch = '1' then
+            d_addr_is_regoffs <= '0';
+            d_branchcond <= BRANCH_C.ALWAYS;
+        end if;
+        if cir_lock_prev_reg = '1' then
+            d_branchcond <= BRANCH_C.NEVER;
+        end if;
+    end process;
 
 end architecture;

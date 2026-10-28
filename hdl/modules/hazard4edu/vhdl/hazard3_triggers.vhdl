@@ -11,17 +11,17 @@ entity hazard3_triggers is
         -- Support for run/halt and instruction injection from any external
         -- Debug Module, support for Debug Mode, and Debug Mode CSR.
         -- Requires: CSR_M_MANDATORY, CSR_M_TRAP
-        DEBUG_SUPPORT       : boolean := FALSE;
+        DEBUG_SUPPORT       : boolean := TRUE;
         -- Number of triggers which support type=2 execute=1 (but not store/load=1,
         -- i.e. not a watchpoint).
         -- Requires: DEBUG_SUPPORT
-        BREAKPOINT_TRIGGERS : natural := 0;
+        BREAKPOINT_TRIGGERS : natural := 8;
         U_MODE              : boolean := FALSE;
         EXTENSION_C         : boolean := TRUE
     );
     port(
         clk              : in  std_logic;
-        rst_n            : in  std_logic;
+        rst              : in  std_logic;
         -- Config interface passed through CSR block
         cfg_addr         : in  std_logic_vector(11 downto 0);
         cfg_wen          : in  std_logic;
@@ -61,7 +61,7 @@ architecture rtl of hazard3_triggers is
     constant NUMBER_OF_BREAKPOINT_REGS : positive := maximum(1, BREAKPOINT_TRIGGERS);
 
     -- Configuration State
-    constant W_TRIGGER_SELECT : positive := integer(ceil(log2(real(NUMBER_OF_TRIGGERS))));
+    constant W_TRIGGER_SELECT : positive := clog2(NUMBER_OF_TRIGGERS);
 
     type trigger_module_t is record
         TSELECT : std_logic_vector(11 downto 0);
@@ -140,7 +140,7 @@ architecture rtl of hazard3_triggers is
         to_std_logic(not EXTENSION_C)
     );
 
-    constant NUMBER_OF_TRIGGERS_PADDED : natural := 2 ** integer(ceil(log2(real(NUMBER_OF_TRIGGERS))));
+    constant NUMBER_OF_TRIGGERS_PADDED : natural := 2 ** clog2(NUMBER_OF_TRIGGERS);
     signal tselect_reg : std_logic_vector(W_TRIGGER_SELECT-1 downto 0);
     signal tselect_match : std_logic_vector(NUMBER_OF_TRIGGERS_PADDED-1 downto 0);
 
@@ -197,94 +197,96 @@ begin
         -- Configuration write port
         -- L168-270
         tselect_match <= std_logic_vector(to_unsigned(1, NUMBER_OF_TRIGGERS_PADDED)) sll to_integer(unsigned(tselect_reg));
-        CFG_UPDATE : process(clk, rst_n) is
+        CFG_UPDATE : process(clk) is
         begin
-            if rst_n = '0' then
-                tselect_reg <= (others => '0');
-                icount_m_reg <= '0';
-                icount_u_reg <= '0';
-                trigger_irq_m_reg <= '0';
-                trigger_irq_u_reg <= '0';
-                trigger_irq_dmode_reg <= '0';
-                trigger_irq_cause_reg <= (others => '0');
-                trigger_exception_m_reg <= '0';
-                trigger_exception_u_reg <= '0';
-                trigger_exception_dmode_reg <= '0';
-                trigger_exception_cause_reg <= (others => '0');
-                bp_tdata1_dmode_reg <= (others => '0');
-                mcontrol_action_reg <= (others => '0');
-                mcontrol_m_reg <= (others => '0');
-                mcontrol_u_reg <= (others => '0');
-                mcontrol_execute_reg <= (others => '0');
-                bp_tdata2_reg <= (others => (others => '0'));
-            elsif rising_edge(clk) then
-                if cfg_wen = '1' and cfg_addr = TRIGMODULE_C.TSELECT then
-
-                    tselect_reg <= cfg_wdata(W_TRIGGER_SELECT - 1 downto 0);
-
-                elsif cfg_wen = '1' and cfg_addr = TRIGMODULE_C.TDATA1 then
-
-                    if tselect_match(TRIGGER_INDEX_COUNT) = '1' then
-                        -- This trigger does not implement a dmode bit, as Debug-mode
-                        -- break on single-step is already provided by dcsr.step
-                        icount_m_reg <= cfg_wdata(9);
-                        icount_u_reg <= cfg_wdata(6) and to_std_logic(U_MODE);
-                    end if;
-                    if tselect_match(TRIGGER_INDEX_INTERRUPT) = '1' and (trigger_irq_dmode_reg and (not x_d_mode)) = '0' then
-                        trigger_irq_dmode_reg <= cfg_wdata(27);
-                        trigger_irq_m_reg <= cfg_wdata(9);
-                        trigger_irq_u_reg <= cfg_wdata(6) and to_std_logic(U_MODE);
-                    end if;
-                    if tselect_match(TRIGGER_INDEX_EXCEPTION) = '1' and (trigger_exception_dmode_reg and (not x_d_mode)) = '0' then
-                        trigger_exception_dmode_reg <= cfg_wdata(27);
-                        trigger_exception_m_reg <= cfg_wdata(9);
-                        trigger_exception_u_reg <= cfg_wdata(6) and to_std_logic(U_MODE);
-                    end if;
-                    for i in 0 to BREAKPOINT_TRIGGERS - 1 loop
-                        if tselect_match(i) = '1' and (bp_tdata1_dmode_reg(i) and (not x_d_mode)) = '0' then
-                            if x_d_mode = '1' then
-                                bp_tdata1_dmode_reg(i) <= cfg_wdata(27);
-                            end if;
-                            mcontrol_action_reg(i) <= cfg_wdata(12);
-                            mcontrol_m_reg(i) <= cfg_wdata(6);
-                            mcontrol_u_reg(i) <= cfg_wdata(3) and to_std_logic(U_MODE);
-                            mcontrol_execute_reg(i) <= cfg_wdata(2);
-                        end if;
-                    end loop;
-                    
-                elsif cfg_wen = '1' and cfg_addr = TRIGMODULE_C.TDATA2 then
-
-                    if tselect_match(TRIGGER_INDEX_INTERRUPT) = '1' and (trigger_irq_dmode_reg and (not x_d_mode)) = '0' then
-                        trigger_irq_cause_reg <= cfg_wdata(15 downto 0) and IMPLEMENTED_IRQ_CAUSES;
-                    end if;
-
-                    if tselect_match(TRIGGER_INDEX_EXCEPTION) = '1' and (trigger_exception_dmode_reg and (not x_d_mode)) = '0' then
-                        trigger_exception_cause_reg <= cfg_wdata(15 downto 0) and IMPLEMENTED_EXCEPTION_CAUSES;
-                    end if;
-
-                    for i in 0 to BREAKPOINT_TRIGGERS - 1 loop
-                        if tselect_match(i) = '1' and (bp_tdata1_dmode_reg(i) and (not x_d_mode)) = '0' then
-                            bp_tdata2_reg(i) <= cfg_wdata(DATA_WIDTH_C - 1 downto 2) & 
-                                                (cfg_wdata(1) and to_std_logic(EXTENSION_C)) & 
-                                                '0';
-                        end if;
-                    end loop;
-
-                end if;
-
-                -- Clear instruction count enables when stepping triggers
-                if (x_d_mode = '1' or event_trap_enter = '1') and break_on_step_reg = '1' then
+            if rising_edge(clk) then
+                if ?? rst then
+                    tselect_reg <= (others => '0');
                     icount_m_reg <= '0';
                     icount_u_reg <= '0';
-                end if;
+                    trigger_irq_m_reg <= '0';
+                    trigger_irq_u_reg <= '0';
+                    trigger_irq_dmode_reg <= '0';
+                    trigger_irq_cause_reg <= (others => '0');
+                    trigger_exception_m_reg <= '0';
+                    trigger_exception_u_reg <= '0';
+                    trigger_exception_dmode_reg <= '0';
+                    trigger_exception_cause_reg <= (others => '0');
+                    bp_tdata1_dmode_reg <= (others => '0');
+                    mcontrol_action_reg <= (others => '0');
+                    mcontrol_m_reg <= (others => '0');
+                    mcontrol_u_reg <= (others => '0');
+                    mcontrol_execute_reg <= (others => '0');
+                    bp_tdata2_reg <= (others => (others => '0'));
+                else
+                    if cfg_wen = '1' and cfg_addr = TRIGMODULE_C.TSELECT then
 
-                if BREAKPOINT_TRIGGERS = 0 then
-                    bp_tdata1_dmode_reg(0) <= '0';
-                    mcontrol_action_reg(0) <= '0';
-                    mcontrol_m_reg(0) <= '0';
-                    mcontrol_u_reg(0) <= '0';
-                    mcontrol_execute_reg(0) <= '0';
-                    bp_tdata2_reg(0) <= (others => '0');
+                        tselect_reg <= cfg_wdata(W_TRIGGER_SELECT - 1 downto 0);
+
+                    elsif cfg_wen = '1' and cfg_addr = TRIGMODULE_C.TDATA1 then
+
+                        if tselect_match(TRIGGER_INDEX_COUNT) = '1' then
+                            -- This trigger does not implement a dmode bit, as Debug-mode
+                            -- break on single-step is already provided by dcsr.step
+                            icount_m_reg <= cfg_wdata(9);
+                            icount_u_reg <= cfg_wdata(6) and to_std_logic(U_MODE);
+                        end if;
+                        if tselect_match(TRIGGER_INDEX_INTERRUPT) = '1' and (trigger_irq_dmode_reg and (not x_d_mode)) = '0' then
+                            trigger_irq_dmode_reg <= cfg_wdata(27);
+                            trigger_irq_m_reg <= cfg_wdata(9);
+                            trigger_irq_u_reg <= cfg_wdata(6) and to_std_logic(U_MODE);
+                        end if;
+                        if tselect_match(TRIGGER_INDEX_EXCEPTION) = '1' and (trigger_exception_dmode_reg and (not x_d_mode)) = '0' then
+                            trigger_exception_dmode_reg <= cfg_wdata(27);
+                            trigger_exception_m_reg <= cfg_wdata(9);
+                            trigger_exception_u_reg <= cfg_wdata(6) and to_std_logic(U_MODE);
+                        end if;
+                        for i in 0 to BREAKPOINT_TRIGGERS - 1 loop
+                            if tselect_match(i) = '1' and (bp_tdata1_dmode_reg(i) and (not x_d_mode)) = '0' then
+                                if x_d_mode = '1' then
+                                    bp_tdata1_dmode_reg(i) <= cfg_wdata(27);
+                                end if;
+                                mcontrol_action_reg(i) <= cfg_wdata(12);
+                                mcontrol_m_reg(i) <= cfg_wdata(6);
+                                mcontrol_u_reg(i) <= cfg_wdata(3) and to_std_logic(U_MODE);
+                                mcontrol_execute_reg(i) <= cfg_wdata(2);
+                            end if;
+                        end loop;
+                    
+                    elsif cfg_wen = '1' and cfg_addr = TRIGMODULE_C.TDATA2 then
+
+                        if tselect_match(TRIGGER_INDEX_INTERRUPT) = '1' and (trigger_irq_dmode_reg and (not x_d_mode)) = '0' then
+                            trigger_irq_cause_reg <= cfg_wdata(15 downto 0) and IMPLEMENTED_IRQ_CAUSES;
+                        end if;
+
+                        if tselect_match(TRIGGER_INDEX_EXCEPTION) = '1' and (trigger_exception_dmode_reg and (not x_d_mode)) = '0' then
+                            trigger_exception_cause_reg <= cfg_wdata(15 downto 0) and IMPLEMENTED_EXCEPTION_CAUSES;
+                        end if;
+
+                        for i in 0 to BREAKPOINT_TRIGGERS - 1 loop
+                            if tselect_match(i) = '1' and (bp_tdata1_dmode_reg(i) and (not x_d_mode)) = '0' then
+                                bp_tdata2_reg(i) <= cfg_wdata(DATA_WIDTH_C - 1 downto 2) & 
+                                                    (cfg_wdata(1) and to_std_logic(EXTENSION_C)) & 
+                                                    '0';
+                            end if;
+                        end loop;
+
+                    end if;
+
+                    -- Clear instruction count enables when stepping triggers
+                    if (x_d_mode = '1' or event_trap_enter = '1') and break_on_step_reg = '1' then
+                        icount_m_reg <= '0';
+                        icount_u_reg <= '0';
+                    end if;
+
+                    if BREAKPOINT_TRIGGERS = 0 then
+                        bp_tdata1_dmode_reg(0) <= '0';
+                        mcontrol_action_reg(0) <= '0';
+                        mcontrol_m_reg(0) <= '0';
+                        mcontrol_u_reg(0) <= '0';
+                        mcontrol_execute_reg(0) <= '0';
+                        bp_tdata2_reg(0) <= (others => '0');
+                    end if;
                 end if;
             end if;
         end process CFG_UPDATE;
@@ -398,12 +400,14 @@ begin
                                    trigger_irq_u_reg and event_interrupt and
                                    trigger_irq_cause_reg(to_integer(event_trap_cause)) and
                                    IMPLEMENTED_IRQ_CAUSES(to_integer(event_trap_cause));
-        process(clk, rst_n) is
+        process(clk) is
         begin
-            if rst_n = '0' then
-                break_ie_reg <= '0';
-            elsif rising_edge(clk) then
-                break_ie_reg <= (not x_d_mode) and (break_ie_reg or exception_trigger_match or interrupt_trigger_match);
+            if rising_edge(clk) then
+                if ?? rst then
+                    break_ie_reg <= '0';
+                else
+                    break_ie_reg <= (not x_d_mode) and (break_ie_reg or exception_trigger_match or interrupt_trigger_match);
+                end if;
             end if; 
         end process;
 
@@ -414,15 +418,17 @@ begin
                               trig_m_en and (not x_d_mode) and icount_u_reg;
         
         -- L422
-        process(clk, rst_n) is
+        process(clk) is
         begin
-            if rst_n = '0' then
-                break_on_step_reg <= '0';
-            elsif rising_edge(clk) then
-                -- Note icount triggers differ from dcsr.step in that they ignore exceptions,
-                -- only triggering on retired instructions.
-                break_on_step_reg <= (not (x_d_mode or event_trap_enter)) and 
-                                     (break_on_step_reg or (event_instr_ret and step_break_enabled));
+            if rising_edge(clk) then
+                if ?? rst then
+                    break_on_step_reg <= '0';
+                else
+                    -- Note icount triggers differ from dcsr.step in that they ignore exceptions,
+                    -- only triggering on retired instructions.
+                    break_on_step_reg <= (not (x_d_mode or event_trap_enter)) and 
+                                         (break_on_step_reg or (event_instr_ret and step_break_enabled));
+                end if;
             end if;
         end process;
 

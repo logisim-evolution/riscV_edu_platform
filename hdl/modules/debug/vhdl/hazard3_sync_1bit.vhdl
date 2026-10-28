@@ -28,11 +28,11 @@ use ieee.std_logic_1164.all;
 
 entity hazard3_sync_1bit is
 	generic (
-		N_STAGES : positive := 2
+		N_STAGES : integer range 2 to integer'high := 2
 	);
 	port (
 		clk   : in std_logic;
-		rst_n : in std_logic;
+		rst   : in std_logic;
 		i     : in std_logic;
 		o     : out std_logic
 	);
@@ -45,18 +45,9 @@ architecture rtl of hazard3_sync_1bit is
 
 begin
 
-	assert N_STAGES >= 2 report "N_STAGES must be >= 2" severity failure;
-	-- Original Verilog Code:
-	--	always @ (posedge clk or negedge rst_n)
-	--		if (!rst_n)
-	--			sync_flops <= {N_STAGES{1'b0}};
-	--		else
-	--			sync_flops <= {sync_flops[N_STAGES-2:0], i};
-	--
-	--	assign o = sync_flops[N_STAGES-1];
-	FF_SYNCRONIZER : process (clk, rst_n)
+	FF_SYNCRONIZER : process (clk, rst)
 	begin
-		if rst_n = '0' then
+		if ?? rst then
 			sync_flops <= (others => '0');
 		elsif rising_edge(clk) then
 			sync_flops <= sync_flops(N_STAGES - 2 downto 0) & i;
