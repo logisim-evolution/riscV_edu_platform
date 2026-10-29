@@ -1,7 +1,7 @@
 """Running the equivalence checks inside a Docker container (--env docker).
 
 The whole runner is started once inside the container, instead of one container per GHDL/Yosys
-call: the repository is mounted at the same path, the runner inside uses the OSS CAD Suite of the
+call: the repository is mounted at the same path (/c/... on Windows), the runner inside uses the OSS CAD Suite of the
 image (--env native), and build artifacts land in verification/build/ exactly as with a local
 installation. The image is built from verification/docker/ when it doesn't exist yet.
 """
@@ -91,6 +91,7 @@ def run(argv: list[str], module: str | None, repo_root: Path, version: str, rebu
     # The same entry point as on the host, so a module launcher stays limited to its module.
     # '--env native' is appended last: argparse keeps the last value, overriding '--env docker'.
     script = f"hdl/modules/{module}/verification/run.py" if module else "verification/equiv.py"
+    work_dir = _container_path(repo_root)
     # No --tty: docker only forwards signals (Ctrl-C) to the container without a TTY. The output
     # still appears immediately, because the image sets PYTHONUNBUFFERED.
     command = [
@@ -98,9 +99,15 @@ def run(argv: list[str], module: str | None, repo_root: Path, version: str, rebu
         # tini as PID 1 forwards signals; with TINI_KILL_PROCESS_GROUP to the whole process group,
         # so GHDL/Yosys stop on Ctrl-C as well, like they do on the host
         "--init", "--env", "TINI_KILL_PROCESS_GROUP=1",
-        "--user", f"{os.getuid()}:{os.getgid()}",   # Build artifacts belong to the user, not root
-        "--volume", f"{repo_root}:{repo_root}",     # Same paths inside and outside the container
-        "--workdir", str(repo_root),
+    ]
+    if hasattr(os, "getuid"):
+        # Build artifacts belong to the user, not root. Docker Desktop on Windows has no uids;
+        # its file sharing gives the files to the Windows user anyway.
+        command += ["--user", f"{os.getuid()}:{os.getgid()}"]
+    command += [
+        # --mount instead of --volume: a Windows drive letter's colon would split the --volume spec
+        "--mount", f"type=bind,source={repo_root},target={work_dir}",
+        "--workdir", work_dir,
         image, "python3", script, *argv, "--env", "native",
     ]
     print(f"Running in container {image} ({_created(docker, image)})", flush=True)
@@ -116,6 +123,15 @@ def run(argv: list[str], module: str | None, repo_root: Path, version: str, rebu
     if code == DOCKER_RUN_FAILED:
         raise ContainerError(f"'docker run' failed for {image}, see the message above")
     return code
+
+
+def _container_path(path: Path) -> str:
+    """The path of the repository inside the container: the same as on the host, except on Windows,
+    where C:\\Users\\x becomes /c/Users/x (as in Git Bash), since the container is Linux."""
+    if os.name != "nt":
+        return str(path)
+    drive, rest = os.path.splitdrive(str(path))
+    return f"/{drive.rstrip(':').lower()}{rest.replace(chr(92), '/')}"
 
 
 def _ensure_image(docker: str, version: str, rebuild: bool) -> str:

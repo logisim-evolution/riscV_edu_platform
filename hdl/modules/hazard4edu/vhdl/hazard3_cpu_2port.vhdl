@@ -163,7 +163,15 @@ entity hazard3_cpu_2port is
         -- Level-sensitive interrupt sources
         irq       : in std_logic_vector(NUMBER_OF_IRQs - 1 downto 0); --> mip.meip
         soft_irq  : in std_logic;                                     --> mip.msip
-        timer_irq : in std_logic                                      --> mip.mtip
+        timer_irq : in std_logic;                                     --> mip.mtip
+
+        -- Custom Instruction Interface (NIOS II compatible)
+        ci_id     : out std_logic_vector(6 downto 0);
+        ci_start  : out std_logic;
+        ci_dataa  : out std_logic_vector(DATA_WIDTH_C - 1 downto 0);
+        ci_datab  : out std_logic_vector(DATA_WIDTH_C - 1 downto 0);
+        ci_done   : in  std_logic;
+        ci_result : in  std_logic_vector(DATA_WIDTH_C - 1 downto 0)
     );
 end entity hazard3_cpu_2port;
 
@@ -310,7 +318,14 @@ begin
 
             irq                        => irq,
             soft_irq                   => soft_irq,
-            timer_irq                  => timer_irq
+            timer_irq                  => timer_irq,
+
+            ci_id                      => ci_id,
+            ci_start                   => ci_start,
+            ci_dataa                   => ci_dataa,
+            ci_datab                   => ci_datab,
+            ci_done                    => ci_done,
+            ci_result                  => ci_result
         );
 
     ---------------------------------------------------------------------------

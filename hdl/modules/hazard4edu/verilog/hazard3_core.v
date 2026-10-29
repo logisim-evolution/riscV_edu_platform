@@ -97,7 +97,15 @@ module hazard3_core #(
 	// Level-sensitive interrupt sources
 	input  wire [NUM_IRQS-1:0] irq,       // -> mip.meip
 	input  wire                soft_irq,  // -> mip.msip
-	input  wire                timer_irq  // -> mip.mtip
+	input  wire                timer_irq, // -> mip.mtip
+	
+	// custom-instruction interface (nios II compatible)
+	output reg 	[6:0]		   ci_id,
+	output reg                 ci_start,
+	output reg  [W_DATA-1:0]   ci_dataa,
+	output reg  [W_DATA-1:0]   ci_datab,
+	input  wire                ci_done,
+	input  wire [W_DATA-1:0]   ci_result
 );
 
 `include "hazard3_ops.vh"
@@ -296,6 +304,8 @@ wire [1:0]           d_csr_wtype;
 wire                 d_csr_w_imm;
 wire [W_ADDR-1:0]    d_lspair_offset;
 
+wire                 d_is_ci;
+
 wire                 x_jump_not_except;
 wire                 x_mmode_execution;
 wire                 x_trap_wfi;
@@ -371,7 +381,9 @@ hazard3_decode #(
 	.d_uninterruptible       (d_uninterruptible),
 	.d_lspair_offset         (d_lspair_offset),
 	.d_fence_i               (d_fence_i),
-	.d_fence_d               (d_fence_d)
+	.d_fence_d               (d_fence_d),
+
+	.d_is_ci                 (d_is_ci)
 );
 
 // ----------------------------------------------------------------------------
@@ -415,6 +427,49 @@ reg                  xm_except_to_d_mode;
 reg                  xm_sleep_wfi;
 reg                  xm_sleep_block;
 reg                  xm_delay_irq_entry_on_ls_stagex;
+
+
+// ----------------------------------------------------------------------------
+// Custom Instruction (supports combinational and multi-cycle custom instructions)
+
+reg  ci_posted;
+wire ci_op_vld  = d_is_ci && !(x_stall_on_raw || ci_posted);
+wire x_stall_ci = d_is_ci && !ci_posted;
+
+always @ (posedge clk)
+    if (rst)
+        ci_posted <= 1'b0;
+    else
+        ci_posted <= (ci_posted || (ci_op_vld && ci_done)) && x_stall;
+
+reg busy;
+assign ci_id     = ci_op_vld ? d_funct7_32b : 0;
+assign ci_dataa  = ci_op_vld ? x_rs1_bypass : 0;
+assign ci_datab  = ci_op_vld ? x_rs2_bypass : 0;
+assign ci_start  = ci_op_vld & ~busy;
+
+reg [31:0] ci_result_latched;
+always @ (posedge clk) begin
+	if (rst) begin
+		ci_result_latched <= 0;
+		busy              <= 0;
+	end	else begin
+
+		// - If the custom instruction is combinational, 'busy' is never
+		// asserted and we directly latch the result in cycle one.
+
+		// - If the custom instruction is multi-cycle, 'busy' gets asserted in
+		// cycle 2 and stays high until the result is produced.
+		// The 'busy' register is used to generate the one-cycle 'ci_start' signal.
+
+		if (ci_done) begin
+			ci_result_latched <= ci_result;
+			busy              <= 1'b0;
+		end else if (ci_op_vld) begin
+			busy              <= 1'b1;
+		end
+	end
+end
 
 // ----------------------------------------------------------------------------
 // Stall logic
@@ -491,6 +546,7 @@ assign x_stall =
 	x_stall_on_raw ||
 	x_stall_on_fence ||
 	x_stall_muldiv ||
+	x_stall_ci ||
 	bus_aph_req_d && !bus_aph_ready_d ||
 	x_jump_req && !f_jump_rdy;
 
@@ -1359,6 +1415,7 @@ always @ (posedge clk) begin
 			|EXTENSION_A && x_amo_phase == 3'h3     ? mw_result         :
 			|MUL_FASTER  && x_use_fast_mul          ? m_fast_mul_result :
 			|EXTENSION_M && d_aluop == ALUOP_MULDIV ? x_muldiv_result   :
+			d_is_ci                                 ? ci_result_latched :
 			                                          x_alu_result;
 		xm_addr_align <= x_addr_sum[1:0];
 	end
