@@ -82,7 +82,8 @@ entity hazard3_decode is
         d_uninterruptible       : out std_logic;
         d_lspair_offset         : out std_logic_vector(ADDRESS_WIDTH_C - 1 downto 0);
         d_fence_i               : out std_logic;
-        d_fence_d               : out std_logic
+        d_fence_d               : out std_logic;
+        d_is_ci                 : out std_logic
     );
 end entity;
 
@@ -142,6 +143,8 @@ architecture rtl of hazard3_decode is
     signal raw_sleep_unblock    : std_logic;
     signal raw_fence_i          : std_logic;
     signal raw_fence_d          : std_logic;
+
+    signal raw_is_ci            : std_logic;
 
 begin
 
@@ -334,6 +337,8 @@ begin
         d_funct7_32b <= fd_cir(31 downto 25);
 
         d_invalid_32bit <= '0';
+
+        raw_is_ci <= '0';
 
         case? d_instr is
             when OPCODE_C.BEQ => 
@@ -757,6 +762,8 @@ begin
                 else
                     d_invalid_32bit <= '1';
                 end if;
+            when OPCODE_C.CUSTOM_INSTRUCTION => 
+                raw_is_ci <= '1';
             when others =>
                 d_invalid_32bit <= '1';
         end case?;
@@ -789,6 +796,8 @@ begin
         d_fence_i <= raw_fence_i;
         d_fence_d <= raw_fence_d;
 
+        d_is_ci <= raw_is_ci;
+
         if (d_invalid or d_starved or d_except_instr_bus_fault or partial_predicted_branch) = '1' then
             d_rs1 <= (others => '0');
             d_rs2 <= (others => '0');
@@ -803,6 +812,7 @@ begin
             d_sleep_unblock <= '0';
             d_fence_i <= '0';
             d_fence_d <= '0';
+            d_is_ci <= '0';
 
             if EXTENSION_M then
                 d_aluop <= ALUOP_C.ADD;

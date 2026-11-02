@@ -147,7 +147,15 @@ entity hazard3_core is
         -- Level-sensitive interrupt sources
         irq       : in std_logic_vector(NUMBER_OF_IRQs - 1 downto 0); --> mip.meip
         soft_irq  : in std_logic;                                     --> mip.msip
-        timer_irq : in std_logic                                      --> mip.mtip
+        timer_irq : in std_logic;                                     --> mip.mtip
+        
+        -- Custom Instruction Interface (NIOS II compatible)
+        ci_id     : out std_logic_vector(6 downto 0);
+        ci_start  : out std_logic;
+        ci_dataa  : out std_logic_vector(DATA_WIDTH_C - 1 downto 0);
+        ci_datab  : out std_logic_vector(DATA_WIDTH_C - 1 downto 0);
+        ci_done   : in  std_logic;
+        ci_result : in  std_logic_vector(DATA_WIDTH_C - 1 downto 0)
     );
 end entity hazard3_core;
 
@@ -261,6 +269,16 @@ architecture rtl of hazard3_core is
     signal debug_dpc_wdata : std_logic_vector(ADDRESS_WIDTH_C - 1 downto 0);
     signal debug_dpc_wen   : std_logic;
     signal debug_dpc_rdata : std_logic_vector(ADDRESS_WIDTH_C - 1 downto 0);
+
+    -- ============================================================================
+    -- Custom Instruction Interface
+    -- ============================================================================
+    signal d_is_ci       : std_logic;
+    signal ci_posted_reg : std_logic;
+    signal ci_op_valid   : std_logic;
+    signal x_stall_ci    : std_logic;
+    signal ci_busy_reg   : std_logic;
+    signal ci_result_reg : std_logic_vector(ci_result'range);
 
     -- ============================================================================
     -- Pipe Stage X (Execution Logic) signals
@@ -609,7 +627,8 @@ begin
             d_uninterruptible       => d_uninterruptible,
             d_lspair_offset         => d_lspair_offset,
             d_fence_i               => d_fence_i,
-            d_fence_d               => d_fence_d
+            d_fence_d               => d_fence_d,
+            d_is_ci                 => d_is_ci
         );
 
     ---------------------------------------------------------------------------
@@ -617,6 +636,43 @@ begin
 
     m_trap_enter_rdy <= f_jump_rdy;
     m_trap_enter_now <= m_trap_enter_vld and m_trap_enter_rdy;
+
+
+    ---------------------------------------------------------------------------
+    -- Custom Instruction Interface
+    -- Supports combinational and multi-cycle custom instructions
+    
+    ci_op_valid <= d_is_ci and not (x_stall_on_raw or ci_posted_reg);
+    x_stall_ci  <= d_is_ci and not ci_posted_reg;
+    ci_id    <= d_funct7_32b when ?? ci_op_valid else (others => '0');
+    ci_dataa <= x_rs1_bypass when ?? ci_op_valid else (others => '0');
+    ci_datab <= x_rs2_bypass when ?? ci_op_valid else (others => '0');
+    ci_start <= not ci_busy_reg and ci_op_valid;
+
+    process(clk) begin
+        if rising_edge(clk) then
+            if ?? rst then
+                ci_posted_reg <= '0';
+                ci_result_reg <= (others => '0');
+                ci_busy_reg   <= '0';
+            else
+                ci_posted_reg <= (ci_posted_reg or (ci_op_valid and ci_done)) and x_stall;
+
+                if ?? ci_done then
+                    -- - If the custom instruction is combinational, 'busy' is never
+		            -- asserted and we directly latch the result in cycle one.
+                    ci_result_reg <= ci_result;
+                    ci_busy_reg <= '0';
+                elsif ?? ci_op_valid then
+		            -- - If the custom instruction is multi-cycle, 'busy' gets asserted in
+		            -- cycle 2 and stays high until the result is produced.
+		            -- The 'busy' register is used to generate the one-cycle 'ci_start' signal.
+                    ci_busy_reg <= '1';
+                end if;
+            end if;
+        end if;
+    end process;
+
 
     ---------------------------------------------------------------------------
     -- Stall logic
@@ -685,6 +741,7 @@ begin
                x_stall_on_raw or
                x_stall_on_fence or
                x_stall_muldiv or
+               x_stall_ci or
                (bus_aph_req_d and not bus_aph_ready_d) or
                (x_jump_req and not f_jump_rdy);
 
@@ -1395,6 +1452,8 @@ begin
                         xm_result_reg <= m_fast_mul_result;
                     elsif EXTENSION_M and d_aluop = ALUOP_C.MULDIV then
                         xm_result_reg <= x_muldiv_result;
+                    elsif ?? d_is_ci then
+                        xm_result_reg <= ci_result_reg;
                     else
                         xm_result_reg <= x_alu_result;
                     end if;

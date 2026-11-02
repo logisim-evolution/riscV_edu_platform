@@ -97,9 +97,12 @@ def execute(plan: Plan, toolchain: Toolchain, timeout: float | None) -> str:
             # flush() before each tool, so our lines end up in front of the tool's output in the log
             log.write(f"=== {plan.test.module}/{plan.test.id} ===\n$ {shlex.join(ghdl)}\n")
             log.flush()
-            # GHDL writes the netlist to stdout and its messages to stderr
-            with plan.silver.open("w") as silver:
-                code = _run(ghdl, toolchain, plan.workdir, silver, log, deadline)
+            # GHDL writes the netlist to stdout and its messages to stderr. The netlist is captured and
+            # written in one go: GHDL writes it in many tiny unbuffered writes, which take over a minute
+            # on a slow file system (Docker Desktop's bind mount of a Windows drive).
+            result = _run(ghdl, toolchain, plan.workdir, subprocess.PIPE, log, deadline)
+            plan.silver.write_bytes(result.stdout)
+            code = result.returncode
             # A negative return code means the process was terminated by that signal number
             if code != 0:
                 return _killed(log, "ghdl", code) if code < 0 else "ghdl-synth-failed"
@@ -114,7 +117,7 @@ def execute(plan: Plan, toolchain: Toolchain, timeout: float | None) -> str:
             plan.script.write_text(plan.script_text)
             log.write(f"\n$ {shlex.join(yosys)}\n")
             log.flush()
-            code = _run(yosys, toolchain, plan.workdir, log, log, deadline)
+            code = _run(yosys, toolchain, plan.workdir, log, log, deadline).returncode
             if code < 0:
                 return _killed(log, "yosys", code)
             # Yosys exits with an error if 'sat -verify' finds a counterexample (or on any other error)
@@ -179,21 +182,22 @@ def verilog_value(value: object) -> str:
     return str(value)
 
 
-def _run(argv, toolchain, cwd, stdout, stderr, deadline) -> int:
-    """Run a command with the given toolchain and working directory, returning its exit code
-    (negative: terminated by that signal). Raises subprocess.TimeoutExpired after the deadline;
+def _run(argv, toolchain, cwd, stdout, stderr, deadline) -> subprocess.CompletedProcess:
+    """Run a command with the given toolchain and working directory; its returncode is negative if
+    it was terminated by that signal. Raises subprocess.TimeoutExpired after the deadline;
     subprocess.run kills the process in that case."""
     timeout = max(deadline - time.monotonic(), 0.1) if deadline else None
     return subprocess.run(argv, cwd=cwd, env=toolchain.env, stdout=stdout, stderr=stderr,
-                          stdin=subprocess.DEVNULL, timeout=timeout).returncode
+                          stdin=subprocess.DEVNULL, timeout=timeout)
 
 
 def _netlist_instances(silver: Path, top: str) -> set[str]:
     """Return the names of the instances in the top-level module of GHDL's Verilog netlist."""
-    # GHDL writes one instance per line as '  <module> <instance> (' and the top level last
+    # GHDL writes one instance per line as '  <module> <instance> (' and the top level last;
+    # GHDL 7 puts a '(* src="<file>:<line>" *) ' attribute in front of the module name
     text = silver.read_text()
     start = text.rfind(f"\nmodule {top}")
-    return set(re.findall(r"^  \S+ (\S+) \($", text[start:], re.MULTILINE)) if start >= 0 else set()
+    return set(re.findall(r'^  (?:\(\* .*?\*\) )?\S+ (\S+) \($', text[start:], re.MULTILINE)) if start >= 0 else set()
 
 
 def _blackbox_commands(test: EquivTest, design: str, present: set[str] | None) -> list[str]:

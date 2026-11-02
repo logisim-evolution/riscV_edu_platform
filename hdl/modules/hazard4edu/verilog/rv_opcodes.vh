@@ -273,4 +273,7 @@ localparam RV_RD_BITS = 5;
 `define RVOPC_NOZ_LD      32'b00000000000000000011000000000011
 `define RVOPC_NOZ_SD      32'b00000000000000000011000000100011
 
+// Custom Instruction 
+`define RVOPC_CUSTOM_1    32'b?????????????????????????0101011
+
 `endif

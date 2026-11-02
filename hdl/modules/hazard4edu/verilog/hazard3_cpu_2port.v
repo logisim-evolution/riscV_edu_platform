@@ -109,7 +109,15 @@ module hazard3_cpu_2port #(
 	// Level-sensitive interrupt sources
 	input wire [NUM_IRQS-1:0] irq,       // -> mip.meip
 	input wire                soft_irq,  // -> mip.msip
-	input wire                timer_irq  // -> mip.mtip
+	input wire                timer_irq, // -> mip.mtip
+
+	// custom-instruction interface (nios II compatible)
+	output wire	[6:0]		  ci_id,
+	output wire               ci_start,
+	output wire [W_DATA-1:0]  ci_dataa,
+	output wire [W_DATA-1:0]  ci_datab,
+	input  wire               ci_done,
+	input  wire [W_DATA-1:0]  ci_result
 );
 
 // ----------------------------------------------------------------------------
@@ -207,7 +215,14 @@ hazard3_core #(
 
 	.irq                        (irq),
 	.soft_irq                   (soft_irq),
-	.timer_irq                  (timer_irq)
+	.timer_irq                  (timer_irq),
+
+	.ci_id                      (ci_id),
+	.ci_start                   (ci_start),
+	.ci_dataa                   (ci_dataa),
+	.ci_datab                   (ci_datab),
+	.ci_done                    (ci_done),
+	.ci_result                  (ci_result)
 );
 
 // ----------------------------------------------------------------------------

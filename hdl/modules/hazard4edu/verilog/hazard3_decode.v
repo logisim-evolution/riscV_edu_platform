@@ -83,7 +83,8 @@ module hazard3_decode #(
 	output wire                 d_uninterruptible,
 	output wire [W_ADDR-1:0]    d_lspair_offset,
 	output reg                  d_fence_i,
-	output reg                  d_fence_d
+	output reg                  d_fence_d,
+	output reg                  d_is_ci
 );
 
 `include "rv_opcodes.vh"
@@ -303,6 +304,7 @@ reg                  raw_sleep_block;
 reg                  raw_sleep_unblock;
 reg                  raw_fence_i;
 reg                  raw_fence_d;
+reg                  raw_is_ci;
 
 always @ (*) begin
 	// Assign some defaults
@@ -333,6 +335,8 @@ always @ (*) begin
 	d_funct7_32b = fd_cir[31:25];
 
 	d_invalid_32bit = 1'b0;
+
+	raw_is_ci = 1'b0;
 
 	casez (d_instr)
 	`RVOPC_BEQ:       begin d_invalid_32bit = DEBUG_SUPPORT && debug_mode; raw_rd = X0; raw_aluop = ALUOP_SUB; raw_branchcond = BCOND_ZERO;  end
@@ -407,7 +411,7 @@ always @ (*) begin
 	`RVOPC_EBREAK:    if (HAVE_CSR)              begin raw_except = EXCEPT_EBREAK; raw_rs2 = X0; raw_rs1 = X0; raw_rd = X0;                                                 end else begin d_invalid_32bit = 1'b1; end
 	`RVOPC_MRET:      if (HAVE_CSR && m_mode)    begin raw_except = EXCEPT_MRET;   raw_rs2 = X0; raw_rs1 = X0; raw_rd = X0;                                                 end else begin d_invalid_32bit = 1'b1; end
 	`RVOPC_WFI:       if (HAVE_CSR && !trap_wfi) begin raw_sleep_wfi = 1'b1;       raw_rs2 = X0; raw_rs1 = X0; raw_rd = X0;                                                 end else begin d_invalid_32bit = 1'b1; end
-
+	`RVOPC_CUSTOM_1:  begin raw_is_ci = 1'b1; end
 	default:          begin d_invalid_32bit = 1'b1; end
 	endcase
 
@@ -440,6 +444,7 @@ always @ (*) begin
 	d_sleep_unblock   = raw_sleep_unblock;
 	d_fence_i         = raw_fence_i;
 	d_fence_d         = raw_fence_d;
+	d_is_ci           = raw_is_ci;
 
 	if (d_invalid || d_starved || d_except_instr_bus_fault || partial_predicted_branch) begin
 		d_rs1             = {W_REGADDR{1'b0}};
@@ -455,6 +460,7 @@ always @ (*) begin
 		d_sleep_unblock   = 1'b0;
 		d_fence_i         = 1'b0;
 		d_fence_d         = 1'b0;
+		d_is_ci           = 1'b0;
 
 		if (EXTENSION_M)
 			d_aluop = ALUOP_ADD;
