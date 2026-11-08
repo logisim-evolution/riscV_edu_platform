@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 entity uartBus is
   generic ( DataBits    : integer := 32;  -- must be 32 for this module
             AddrBits    : integer := 32;  -- must be > 4 for this module
-            BaseAddress : std_logic_vector := std_logic_vector(to_unsigned(0,32)));
+            BaseAddress : std_logic_vector( AddrBits-1 downto 0 ) := std_logic_vector(to_unsigned(0,AddrBits)));
   port ( CLK_I      : in  std_logic;
          RST_I      : in  std_logic;
          DAT_I      : in  std_logic_vector( DataBits-1 downto 0 );
@@ -69,22 +69,21 @@ begin
       if (RST_I = '1') then
         s_ackReg         <= '0';
         s_errorReg       <= '0';
-        s_weReg          <= '0';
-        s_reReg          <= '0';
         s_indexReg       <= (others => '0');
-        s_dataInReg      <= (others => '0');
-        s_byteEnablesReg <= (others => '0');
-                       else
+      else
         s_ackReg         <= not(s_ackReg) and isCorrectTransaction;
         s_errorReg       <= not(s_errorReg) and isMyTransaction and not(isCorrectTransaction);
-        s_weReg          <= not(s_ackReg) and isCorrectTransaction and WE_I;
-        s_reReg          <= not(s_ackReg) and isCorrectTransaction and not(WE_I);
         if (s_ackReg = '0' and isCorrectTransaction = '1') then
-          s_indexReg       <= ADDR_I(2 downto 0);
-          s_dataInReg      <= DAT_I;
-          s_byteEnablesReg <= SEL_I;
+          s_indexReg     <= ADDR_I(2 downto 0);
         end if;
       end if;
+      
+      if (s_ackReg = '0' and isCorrectTransaction = '1') then
+        s_dataInReg      <= DAT_I;
+        s_byteEnablesReg <= SEL_I;
+      end if;
+      s_reReg <= not(s_ackReg) and isCorrectTransaction and not(WE_I);
+      s_weReg <= not(s_ackReg) and isCorrectTransaction and WE_I;
     end if;
   end process makeBusRegs;
 
@@ -134,7 +133,7 @@ begin
   -- here the baud rate generator is defined
   bdg : entity work.baudGenerator(behav)
      port map( clock           => CLK_I,
-               clock_50MHz     => clock50MHz,
+               clock50MHz      => clock50MHz,
                reset           => RST_I,
                baudDivisor     => s_divisorReg,
                baudRateX16Tick => s_baudRateX16Tick,

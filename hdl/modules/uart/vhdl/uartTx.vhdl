@@ -87,7 +87,7 @@ begin
   -- here we define the half bit counter
   s_halfBitCountNext <= "00000" when reset = '1' else
                         s_halfBitLoadValue when s_stateMachineReg = LOAD and baudRateX2tick = '1' else
-                        s_halfBitCountReg when s_halfBitCountReg = "00000" and baudRateX2tick = '0' else
+                        s_halfBitCountReg when s_halfBitCountReg = "00000" or baudRateX2tick = '0' else
                         s_halfBitCountReg - to_unsigned(1, 5);
   
   makeHalfBitReg : process( clock ) is

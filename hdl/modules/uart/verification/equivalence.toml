@@ -1,0 +1,82 @@
+# Equivalence checks of the serv core: the VHDL port (vhdl/) against the serv reference (verilog/).
+# Run with ./run.py, see verification/README.md in the repository root for the format.
+
+
+# Include the verilog folder path as the verilog RTL files include themself various configuration / header files.
+[module]
+include = ["verilog"]
+
+[filesets.baudGenerator]
+vhdl    = ["baudGenerator.vhdl"]
+verilog = ["baudGenerator.v"]
+
+[filesets.RxFifo]
+vhdl    = ["uartRxFifo.vhdl"]
+verilog = ["uartRxFifo.v"]
+
+[filesets.Rx]
+vhdl    = ["uartRx.vhdl"]
+verilog = ["uartRx.v"]
+
+[filesets.TxFifo]
+vhdl    = ["uartTxFifo.vhdl"]
+verilog = ["uartTxFifo.v"]
+
+[filesets.Tx]
+vhdl    = ["uartTx.vhdl"]
+verilog = ["uartTx.v"]
+
+[filesets.Bus]
+vhdl    = ["uartBus.vhdl"]
+verilog = ["uartBus.v"]
+
+[filesets.synchroFlop]
+vhdl    = ["../../support/vhdl/synchroFlop.vhdl"]
+verilog = ["../../support/verilog/synchroFlop.v"]
+
+[filesets.sramLutRam]
+vhdl    = ["../../support/vhdl/sramLutRam.vhdl"]
+verilog = ["../../support/verilog/sramLutRam.v"]
+
+
+
+[[test]]
+name  = "baudGenerator"
+use   = ["baudGenerator", "synchroFlop"]
+sat_cycles = 30
+reset = { reset = [1, 0] }
+blackbox_instances = ["synchroFlop"]
+
+[[test]]
+name  = "uartRxFifo"
+use   = ["RxFifo", "sramLutRam"]
+sat_cycles = 8
+reset = { reset = [1, 0] }
+blackbox_instances = ["sramLutRam"]
+
+[[test]]
+name  = "uartRx"
+use   = ["Rx"]
+sat_cycles = 25
+reset = { reset = [1, 0] }
+
+[[test]]
+name  = "uartTxFifo"
+use   = ["TxFifo", "sramLutRam"]
+sat_cycles = 8
+reset = { reset = [1, 0] }
+blackbox_instances = ["sramLutRam"]
+
+[[test]]
+name  = "uartTx"
+use   = ["Tx"]
+sat_cycles = 25
+reset = { reset = [1, 0] }
+
+[[test]]
+name  = "uartBus"
+use   = ["Bus", "RxFifo", "TxFifo", "Rx", "Tx", "baudGenerator", "synchroFlop", "sramLutRam"]
+sat_cycles = 10
+reset = { RST_I = [1, 0] }
+blackbox_instances = ["sramLutRam", "synchroFlop"]
+

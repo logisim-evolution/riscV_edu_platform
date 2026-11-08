@@ -4,7 +4,7 @@ use ieee.numeric_std.all;
 
 entity baudGenerator is
    port( clock           : in  std_logic;
-         clock_50MHz     : in  std_logic;
+         clock50MHz     : in  std_logic;
          reset           : in  std_logic;
          baudDivisor     : in  std_logic_vector( 15 downto 0 );
          baudRateX16Tick : out std_logic;
@@ -32,9 +32,9 @@ begin
   s_baudRateX16Tick <= s_counterLoad and not(s_counterResetReg);
   s_baudRateX2Tick  <= s_counterLoad and s_baudDivIsZero and not(s_counterResetReg);
   
-  makeFlops : process( clock_50MHz )
+  makeFlops : process( clock50MHz )
   begin
-    if (rising_edge( clock_50MHz )) then
+    if (rising_edge( clock50MHz )) then
       s_counterResetReg <= reset;
       s_counterReg      <= s_counterNext;
       s_baudDivReg      <= s_baudDivNext;
@@ -42,14 +42,14 @@ begin
   end process makeFlops;
   
   baud16 : entity work.synchroFlop(platformIndependant)
-    port map ( clockIn  => clock_50MHz,
+    port map ( clockIn  => clock50MHz,
                clockOut => clock,
                reset    => reset,
                D        => s_baudRateX16Tick,
                Q        => baudRateX16Tick);
 
   baud2 : entity work.synchroFlop(platformIndependant)
-    port map ( clockIn  => clock_50MHz,
+    port map ( clockIn  => clock50MHz,
                clockOut => clock,
                reset    => reset,
                D        => s_baudRateX2Tick,

@@ -1,0 +1,36 @@
+# Equivalence checks of the serv core: the VHDL port (vhdl/) against the serv reference (verilog/).
+# Run with ./run.py, see verification/README.md in the repository root for the format.
+
+
+# Include the verilog folder path as the verilog RTL files include themself various configuration / header files.
+[module]
+include = ["verilog"]
+
+[filesets.singlePortBlockRam]
+vhdl    = ["singlePortBlockRam.vhdl"]
+verilog = ["singlePortBlockRam.v"]
+
+[filesets.sramLutRam]
+vhdl    = ["sramLutRam.vhdl"]
+verilog = ["sramLutRam.v"]
+
+[filesets.synchroFlop]
+vhdl    = ["synchroFlop.vhdl"]
+verilog = ["synchroFlop.v"]
+
+
+[[test]]
+name  = "singlePortBlockRam"
+use   = ["singlePortBlockRam"]
+sat_cycles = 17
+
+[[test]]
+name  = "sramLutRam"
+use   = ["sramLutRam"]
+sat_cycles = 33
+
+[[test]]
+name  = "synchroFlop"
+use   = ["synchroFlop"]
+sat_cycles = 3
+reset = { reset = [1, 0] }
