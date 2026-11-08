@@ -68,15 +68,16 @@ begin
   end process makeRxRegs;
 
   -- here the shift register is defined
-  s_baudCounterNext <= (others => '0') when reset = '1' or s_stateMachineReg = INIT else
-                       s_baudCounterReg + to_unsigned(1, 4) when s_stateMachineReg = RECEIVE and baudRateX16Tick = '1' else s_baudCounterReg;
-  s_sampleTick      <= baudRateX16Tick when s_baudCounterReg = to_unsigned(7, 4) else '0';
-  s_doShift         <= '0' when s_bitCounterReg = to_unsigned(0, 4) else s_sampleTick;
-  s_bitCounterNext  <= (others => '0') when reset = '1' else
-                       s_bitCounterLoadValue when s_stateMachineReg = INIT else
-                       s_bitCounterReg - to_unsigned(1 , 4) when s_doShift = '1' else s_bitCounterReg;
-  s_shiftNext       <= (others => '0') when reset = '1' else
-                       s_filteredRxReg & s_shiftReg( 10 downto 1 ) when s_doShift = '1' else s_shiftReg;
+  s_baudCounterNext   <= (others => '0') when reset = '1' or s_stateMachineReg = INIT else
+                         s_baudCounterReg + to_unsigned(1, 4) when s_stateMachineReg = RECEIVE and baudRateX16Tick = '1' else s_baudCounterReg;
+  s_sampleTick        <= baudRateX16Tick when s_baudCounterReg = to_unsigned(7, 4) else '0';
+  s_doShift           <= '0' when s_bitCounterReg = to_unsigned(0, 4) else s_sampleTick;
+  s_bitCounterNext    <= (others => '0') when reset = '1' else
+                         s_bitCounterLoadValue when s_stateMachineReg = INIT else
+                         s_bitCounterReg - to_unsigned(1 , 4) when s_doShift = '1' else s_bitCounterReg;
+  s_shiftNext         <= (others => '0') when reset = '1' else
+                         s_filteredRxReg & s_shiftReg( 10 downto 1 ) when s_doShift = '1' else s_shiftReg;
+  s_bitCounterSelect  <= controlReg(3) & controlReg(1 downto 0);
   
   makeShiftRegs : process( clock ) is
   begin
@@ -169,22 +170,25 @@ begin
   makeDataFlops : process ( clock ) is
   begin
     if (rising_edge( clock )) then
+
+      fifoWe <= s_delayReg and not( s_overrunReg );
+
+      if (s_stateMachineReg = WRITE) then
+        s_dataOutReg <= s_dataBits;
+      end if;
+      
       if (reset = '1') then
         s_frameErrorReg  <= '0';
         s_breakReg       <= '0';
         s_overrunReg     <= '0';
         s_parityErrorReg <= '0';
-        s_dataOutReg     <= (others => '0');
         s_delayReg       <= '0';
-        fifoWe           <= '0';
       else
-        fifoWe           <= s_delayReg and not( s_overrunReg );
         if (s_stateMachineReg = WRITE) then
           s_frameErrorReg  <= s_shiftReg(10) or s_isBreak;
           s_breakReg       <= s_isBreak;
           s_overrunReg     <= fifoFull and not( s_isBreak );
           s_parityErrorReg <= s_parityError;
-          s_dataOutReg     <= s_dataBits;
           s_delayReg       <= '1';
                                        else
           s_delayReg       <= '0';
