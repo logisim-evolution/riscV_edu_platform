@@ -43,27 +43,31 @@ verilog = ["../../support/verilog/sramLutRam.v"]
 [[test]]
 name  = "baudGenerator"
 use   = ["baudGenerator", "synchroFlop"]
-sat_cycles = 33 # TODO use k induction
+sat_cycles = 5
+k_induction = true
 reset = { reset = [1, 0] }
 blackbox_instances = ["synchroFlop"]
 
 [[test]]
 name  = "uartRxFifo"
 use   = ["RxFifo", "sramLutRam"]
-sat_cycles = 17
+sat_cycles = 8
+k_induction = true
 reset = { reset = [1, 0] }
 blackbox_instances = ["sramLutRam"]
 
 [[test]]
 name  = "uartRx"
 use   = ["Rx"]
-sat_cycles = 50 # TODO 181
+sat_cycles = 25
+k_induction = true
 reset = { reset = [1, 0] }
 
 [[test]]
 name  = "uartTxFifo"
 use   = ["TxFifo", "sramLutRam"]
-sat_cycles = 17
+sat_cycles = 8
+k_induction = true
 reset = { reset = [1, 0] }
 blackbox_instances = ["sramLutRam"]
 
@@ -71,12 +75,14 @@ blackbox_instances = ["sramLutRam"]
 name  = "uartTx"
 use   = ["Tx"]
 sat_cycles = 25
+k_induction = true
 reset = { reset = [1, 0] }
 
 [[test]]
 name  = "uartBus"
 use   = ["Bus", "RxFifo", "TxFifo", "Rx", "Tx", "baudGenerator", "synchroFlop", "sramLutRam"]
-sat_cycles = 20 # TODO use k induction
+sat_cycles = 6
+k_induction = true
 reset = { RST_I = [1, 0] }
 blackbox_instances = ["sramLutRam", "synchroFlop"]
 [test.basic]
