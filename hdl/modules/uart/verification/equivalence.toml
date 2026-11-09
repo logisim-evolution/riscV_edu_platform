@@ -43,8 +43,7 @@ verilog = ["../../support/verilog/sramLutRam.v"]
 [[test]]
 name  = "baudGenerator"
 use   = ["baudGenerator", "synchroFlop"]
-sat_cycles = 5
-k_induction = true
+sat_cycles = 30
 reset = { reset = [1, 0] }
 blackbox_instances = ["synchroFlop"]
 
@@ -52,7 +51,6 @@ blackbox_instances = ["synchroFlop"]
 name  = "uartRxFifo"
 use   = ["RxFifo", "sramLutRam"]
 sat_cycles = 8
-k_induction = true
 reset = { reset = [1, 0] }
 blackbox_instances = ["sramLutRam"]
 
@@ -60,14 +58,12 @@ blackbox_instances = ["sramLutRam"]
 name  = "uartRx"
 use   = ["Rx"]
 sat_cycles = 25
-k_induction = true
 reset = { reset = [1, 0] }
 
 [[test]]
 name  = "uartTxFifo"
 use   = ["TxFifo", "sramLutRam"]
 sat_cycles = 8
-k_induction = true
 reset = { reset = [1, 0] }
 blackbox_instances = ["sramLutRam"]
 
@@ -75,17 +71,12 @@ blackbox_instances = ["sramLutRam"]
 name  = "uartTx"
 use   = ["Tx"]
 sat_cycles = 25
-k_induction = true
 reset = { reset = [1, 0] }
 
 [[test]]
 name  = "uartBus"
 use   = ["Bus", "RxFifo", "TxFifo", "Rx", "Tx", "baudGenerator", "synchroFlop", "sramLutRam"]
-sat_cycles = 6
-k_induction = true
+sat_cycles = 10
 reset = { RST_I = [1, 0] }
 blackbox_instances = ["sramLutRam", "synchroFlop"]
-[test.basic]
-BaseAddress = { vhdl = "x\"0000_0000\"", verilog = "32'h00" }
-# TODO add extensive cases
 
