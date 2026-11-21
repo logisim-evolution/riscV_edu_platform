@@ -58,7 +58,7 @@ begin
                                      ((s_fifoRe = '1' and s_fifoWe = '0') or
                                       (s_fifoRe = '1' and s_fifoWe = '1' and to_integer(s_writeAddressReg) /= n) or
                                       clearError = '1') else '0';
-    s_writeError(n)      <= '1' when to_integer(s_writeAddressReg) = n and s_fifoWe = '1' else '0';
+    s_writeError(n)      <= '1' when to_integer(s_writeAddressReg) = n and s_fifoWe = '1' and s_fifoFullReg = '0' else '0';
     s_frameErrorNext(n)  <= '0' when reset = '1' or s_clearError(n) = '1' else
                             frameErrorIn when s_writeError(n) = '1' else s_frameErrorReg(n);
     s_parityErrorNext(n) <= '0' when reset = '1' or s_clearError(n) = '1' else

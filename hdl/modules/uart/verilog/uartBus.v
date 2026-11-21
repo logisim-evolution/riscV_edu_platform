@@ -1,7 +1,7 @@
 module uartBus
   #( parameter DataBits = 32, // must be 32 for this module
      parameter AddrBits = 32, // must be > 4 for this module
-     parameter [AddrBits-1:0] BaseAddress )
+     parameter [AddrBits-1:0] BaseAddress = 0 )
    ( input  wire CLK_I,
      input  wire RST_I,
      input  wire [DataBits-1:0] DAT_I,
