@@ -1,0 +1,34 @@
+# Equivalence checks of the sram slave module: the VHDL against the reference verilog.
+# Run with ./run.py, see verification/README.md in the repository root for the format.
+
+
+# Include the verilog folder path as the verilog RTL files include themself various configuration / header files.
+[module]
+include = ["verilog"]
+
+[filesets.sramSlave]
+vhdl    = ["sramSlave.vhdl"]
+verilog = ["sramSlave.v"]
+
+[filesets.singlePortBlockRam]
+vhdl    = ["../../support/vhdl/singlePortBlockRam.vhdl"]
+verilog = ["../../support/verilog/singlePortBlockRam.v"]
+
+
+[[test]]
+name  = "sramSlave_blackbox"
+top   = "sramSlave"
+use   = ["sramSlave", "singlePortBlockRam"]
+sat_cycles = 20
+reset = { RST_I = [1, 0] }
+blackbox_instances = ["singlePortBlockRam"]
+[test.basic]
+nrOfEntriesInBytes = 1024
+
+[[test]]
+name  = "sramSlave"
+use   = ["sramSlave", "singlePortBlockRam"]
+sat_cycles = 20
+reset = { RST_I = [1, 0] }
+[test.basic]
+nrOfEntriesInBytes = 1024

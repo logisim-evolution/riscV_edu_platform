@@ -52,7 +52,7 @@ begin
                      elsif (s_isCorrectTransaction = '1') then s_stateNext <= BURST;
                      else s_stateNext <= IDLE;
                      end if;
-      when BURST  => if (s_isMyTransaction = '0' and CYC_I = '1' and STB_I = '1') then s_stateNext <= BUSERROR;
+      when BURST  => if (s_isCorrectTransaction = '0' and CYC_I = '1' and STB_I = '1') then s_stateNext <= BUSERROR;
                      elsif (CTI_I = "111" or CYC_I = '0') then s_stateNext <= IDLE;
                      else s_stateNext <= BURST;
                      end if;
@@ -72,12 +72,11 @@ begin
   -- here the memories are defined
   s_ramAddress <= ADDR_I(c_nrOfBusAddressBits-1 downto 2);
   s_byteWe     <= SEL_I when WE_I = '1' and STB_I = '1' and s_isCorrectTransaction = '1' else "0000";
-  s_nClock     <= not(CLK_I);
   
   byte0 : entity work.singlePortBlockRam(platformindependent)
     generic map ( nrOfAddressBits => c_nrOfBusAddressBits - 2,
                   nrOfDataBits    => 8)
-    port map ( clock       => s_nClock,
+    port map ( clock       => CLK_I,
                writeEnable => s_byteWe(0),
                address     => s_ramAddress,
                dataIn      => DAT_I( 7 downto 0 ),
@@ -86,7 +85,7 @@ begin
   byte1 : entity work.singlePortBlockRam(platformindependent)
     generic map ( nrOfAddressBits => c_nrOfBusAddressBits - 2,
                   nrOfDataBits    => 8)
-    port map ( clock       => s_nClock,
+    port map ( clock       => CLK_I,
                writeEnable => s_byteWe(1),
                address     => s_ramAddress,
                dataIn      => DAT_I( 15 downto 8 ),
@@ -95,7 +94,7 @@ begin
   byte2 : entity work.singlePortBlockRam(platformindependent)
     generic map ( nrOfAddressBits => c_nrOfBusAddressBits - 2,
                   nrOfDataBits    => 8)
-    port map ( clock       => s_nClock,
+    port map ( clock       => CLK_I,
                writeEnable => s_byteWe(2),
                address     => s_ramAddress,
                dataIn      => DAT_I( 23 downto 16 ),
@@ -104,7 +103,7 @@ begin
   byte3 : entity work.singlePortBlockRam(platformindependent)
     generic map ( nrOfAddressBits => c_nrOfBusAddressBits - 2,
                   nrOfDataBits    => 8)
-    port map ( clock       => s_nClock,
+    port map ( clock       => CLK_I,
                writeEnable => s_byteWe(3),
                address     => s_ramAddress,
                dataIn      => DAT_I( 31 downto 24 ),
