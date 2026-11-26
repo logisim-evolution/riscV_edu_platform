@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 entity leds is
   generic ( DataBits    : integer := 32;  -- must be 32 for this module
             AddrBits    : integer := 32;  -- must be > 11 for this module
-            BaseAddress : std_logic_vector := std_logic_vector(to_unsigned(0,32)));
+            BaseAddress : std_logic_vector := x"50000800");
   port ( CLK_I     : in  std_logic;
          RST_I     : in  std_logic;
          DAT_I     : in  std_logic_vector( DataBits-1 downto 0 );
@@ -57,7 +57,7 @@ architecture platformIndependent of leds is
 
 begin
   -- here the bus signals are defined
-  isMyTransaction      <= CYC_I and STB_I when ADDR_I( AddrBits - 1 downto 0 ) = baseAddressReg( AddrBits - 1 downto 0 ) else '0';
+  isMyTransaction      <= CYC_I and STB_I when ADDR_I( AddrBits - 1 downto 11 ) = baseAddressReg( AddrBits - 1 downto 11 ) else '0';
   isCorrectTransaction <= isMyTransaction when CTI_I = "000" and SEL_I = X"F" else '0';
   s_pixelBased         <= indexReg(8);
   s_pixelIndex         <= unsigned(indexReg( 7 downto 0 ));
@@ -101,17 +101,17 @@ begin
     s_ledsNext(n)(0)               <= dataInReg(0) when s_pixelBased = '1' else
                                       dataInReg(11 - (n mod 12)) when s_pixelIndex(7 downto 6) = "00" else
                                       dataInReg(11 - (n mod 12)) or s_ledsReg(n)(0) when s_pixelIndex(7 downto 6) = "01" else
-                                      not(dataInReg(11 - (n mod 12))) and s_ledsReg(n)(0) when s_pixelIndex(7 downto 6) = "10" else
+                                      dataInReg(11 - (n mod 12)) and s_ledsReg(n)(0) when s_pixelIndex(7 downto 6) = "10" else
                                       dataInReg(11 - (n mod 12)) xor s_ledsReg(n)(0);
     s_ledsNext(n)(1)               <= dataInReg(1) when s_pixelBased = '1' else
                                       dataInReg(11 - (n mod 12)) when s_pixelIndex(7 downto 6) = "00" else
                                       dataInReg(11 - (n mod 12)) or s_ledsReg(n)(1) when s_pixelIndex(7 downto 6) = "01" else
-                                      not(dataInReg(11 - (n mod 12))) and s_ledsReg(n)(1) when s_pixelIndex(7 downto 6) = "10" else
+                                      dataInReg(11 - (n mod 12)) and s_ledsReg(n)(1) when s_pixelIndex(7 downto 6) = "10" else
                                       dataInReg(11 - (n mod 12)) xor s_ledsReg(n)(1);
     s_ledsNext(n)(2)               <= dataInReg(2) when s_pixelBased = '1' else
                                       dataInReg(11 - (n mod 12)) when s_pixelIndex(7 downto 6) = "00" else
                                       dataInReg(11 - (n mod 12)) or s_ledsReg(n)(2) when s_pixelIndex(7 downto 6) = "01" else
-                                      not(dataInReg(11 - (n mod 12))) and s_ledsReg(n)(2) when s_pixelIndex(7 downto 6) = "10" else
+                                      dataInReg(11 - (n mod 12)) and s_ledsReg(n)(2) when s_pixelIndex(7 downto 6) = "10" else
                                       dataInReg(11 - (n mod 12)) xor s_ledsReg(n)(2);
     s_weRed(n)                     <= weReg when (s_pixelBased = '1' and to_integer(s_pixelIndex(6 downto 0)) = n) or
                                                  (s_pixelBased = '0' and to_integer(s_pixelIndex(5 downto 2)) = n/12 and
