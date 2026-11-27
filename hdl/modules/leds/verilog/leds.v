@@ -1,7 +1,7 @@
 module leds 
   #( parameter DataBits = 32, // must be 32 for this module
      parameter AddrBits = 32, // must be > 11 for this module
-     parameter [AddrBits-1:0] BaseAddress = 32'h50000000)
+     parameter [AddrBits-1:0] BaseAddress = 32'h50000800)
    ( input  wire CLK_I,
      input  wire RST_I,
      input  wire [DataBits-1:0] DAT_I,
@@ -50,11 +50,11 @@ module leds
 
   always @(posedge CLK_I)
   begin
-    ackReg         <= (RST_I == 1'b1) ? 1'b0 : ~ackReg & isCorrectTransaction;
-    errorReg       <= (RST_I == 1'b1) ? 1'b0 : ~errorReg & isMyTransaction & ~isCorrectTransaction;
-    weReg          <= ~ackReg & isCorrectTransaction & WE_I;
-    indexReg       <= (ackReg == 1'b0 && isCorrectTransaction == 1'b1) ? ADDR_I[10:2] : indexReg;
-    dataInReg      <= (ackReg == 1'b0 && isCorrectTransaction == 1'b1) ? DAT_I : dataInReg;
+    ackReg         <= (RST_I == 1'b1) ? 1'b0  : ~ackReg & isCorrectTransaction;
+    errorReg       <= (RST_I == 1'b1) ? 1'b0  : ~errorReg & isMyTransaction & ~isCorrectTransaction;
+    weReg          <= (RST_I == 1'b1) ? 1'b0  : ~ackReg & isCorrectTransaction & WE_I;
+    indexReg       <= (RST_I == 1'b1) ? 9'b0  : (ackReg == 1'b0 && isCorrectTransaction == 1'b1) ? ADDR_I[10:2] : indexReg;
+    dataInReg      <= (RST_I == 1'b1) ? 32'b0 : (ackReg == 1'b0 && isCorrectTransaction == 1'b1) ? DAT_I : dataInReg;
     baseAddressReg <= (RST_I == 1'b1) ? BaseAddress : 
                       (weReg == 1'b1 && indexReg == 9'b111111111) ? dataInReg : baseAddressReg;
   end
@@ -78,15 +78,15 @@ module leds
         assign s_ledsNext[n][0] = (s_pixelBased == 1'b1) ? dataInReg[0] : 
                                   (s_pixelIndex[7:6] == 2'd0) ? dataInReg[11-(n % 12)] :
                                   (s_pixelIndex[7:6] == 2'd1) ? dataInReg[11-(n % 12)] | s_ledsReg[n][0] :
-                                  (s_pixelIndex[7:6] == 2'd2) ? ~dataInReg[11-(n % 12)] & s_ledsReg[n][0] : dataInReg[11-(n % 12)] ^ s_ledsReg[n][0];
+                                  (s_pixelIndex[7:6] == 2'd2) ? dataInReg[11-(n % 12)] & s_ledsReg[n][0] : dataInReg[11-(n % 12)] ^ s_ledsReg[n][0];
         assign s_ledsNext[n][1] = (s_pixelBased == 1'b1) ? dataInReg[1] : 
                                   (s_pixelIndex[7:6] == 2'd0) ? dataInReg[11-(n % 12)] :
                                   (s_pixelIndex[7:6] == 2'd1) ? dataInReg[11-(n % 12)] | s_ledsReg[n][1] :
-                                  (s_pixelIndex[7:6] == 2'd2) ? ~dataInReg[11-(n % 12)] & s_ledsReg[n][1] : dataInReg[11-(n % 12)] ^ s_ledsReg[n][1];
+                                  (s_pixelIndex[7:6] == 2'd2) ? dataInReg[11-(n % 12)] & s_ledsReg[n][1] : dataInReg[11-(n % 12)] ^ s_ledsReg[n][1];
         assign s_ledsNext[n][2] = (s_pixelBased == 1'b1) ? dataInReg[2] : 
                                   (s_pixelIndex[7:6] == 2'd0) ? dataInReg[11-(n % 12)] :
                                   (s_pixelIndex[7:6] == 2'd1) ? dataInReg[11-(n % 12)] | s_ledsReg[n][2] :
-                                  (s_pixelIndex[7:6] == 2'd2) ? ~dataInReg[11-(n % 12)] & s_ledsReg[n][2] : dataInReg[11-(n % 12)] ^ s_ledsReg[n][2];
+                                  (s_pixelIndex[7:6] == 2'd2) ? dataInReg[11-(n % 12)] & s_ledsReg[n][2] : dataInReg[11-(n % 12)] ^ s_ledsReg[n][2];
         assign s_weRed[n]   = ((s_pixelBased == 1'b1 && s_pixelIndex[6:0] == n) ||
                                (s_pixelBased == 1'b0 && s_pixelIndex[5:2] == (n/12) && (s_pixelIndex[1:0] == 2'd2 ||s_pixelIndex[1:0] == 2'd3))) ? weReg : 1'b0;
         assign s_weGreen[n] = ((s_pixelBased == 1'b1 && s_pixelIndex[6:0] == n) ||

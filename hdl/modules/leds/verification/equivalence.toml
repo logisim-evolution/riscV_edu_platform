@@ -1,0 +1,13 @@
+# Equivalence checks of the leds module: the VHDL against the reference verilog.
+# Run with ./run.py, see verification/README.md in the repository root for the format.
+
+
+[filesets.leds]
+vhdl    = ["leds.vhdl"]
+verilog = ["leds.v"]
+
+[[test]]
+name  = "leds"
+use   = ["leds"]
+sat_cycles = 16
+reset = { RST_I = [1, 0] }
